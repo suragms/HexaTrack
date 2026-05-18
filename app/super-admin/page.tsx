@@ -6,7 +6,7 @@ import { hexaTrackApi } from '@/lib/api';
 import type { AdminAnalyticsDashboard } from '@/lib/types';
 import {
   Building2, Users, GitBranch, CreditCard, TrendingUp, TrendingDown,
-  Activity, Globe, Zap, ArrowUpRight, ArrowDownRight, BarChart3
+  Activity, Globe, Zap, BarChart3, WalletCards
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -15,12 +15,11 @@ type MetricCardProps = {
   value: string | number;
   subtitle?: string;
   icon: React.ElementType;
-  trend?: number;
   color: string;
   delay?: number;
 };
 
-function MetricCard({ title, value, subtitle, icon: Icon, trend, color, delay = 0 }: MetricCardProps) {
+function MetricCard({ title, value, subtitle, icon: Icon, color, delay = 0 }: MetricCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -28,17 +27,10 @@ function MetricCard({ title, value, subtitle, icon: Icon, trend, color, delay = 
       transition={{ duration: 0.4, delay }}
       className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5"
     >
-      <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.04]" style={{ background: `radial-gradient(circle, ${color}, transparent 70%)` }} />
       <div className="flex items-start justify-between mb-3">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center`} style={{ background: `${color}15` }}>
           <Icon size={18} style={{ color }} />
         </div>
-        {trend !== undefined && (
-          <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${trend >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'}`}>
-            {trend >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-            {Math.abs(trend)}%
-          </div>
-        )}
       </div>
       <p className="text-2xl font-bold text-white tracking-tight">{typeof value === 'number' ? value.toLocaleString() : value}</p>
       <p className="text-[11px] font-medium text-gray-500 mt-1">{title}</p>
@@ -94,9 +86,8 @@ export default function SuperAdminDashboard() {
   }
 
   const d = data ?? {} as AdminAnalyticsDashboard;
-  const userGrowth = d.newUsersByDay?.slice(-7).map(p => p.value) ?? [];
   const txGrowth = d.transactionsByDay?.slice(-14).map(p => p.value) ?? [];
-  const wsGrowth = d.newWorkspacesByDay?.slice(-14).map(p => p.value) ?? [];
+  const totalUsers = d.cumulativeUsersByDay?.at(-1)?.value ?? 0;
 
   return (
     <div className="p-4 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -116,18 +107,25 @@ export default function SuperAdminDashboard() {
 
       {/* Primary metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <MetricCard title="Total Users" value={d.cumulativeUsersByDay?.at(-1)?.value ?? 0} icon={Users} color="#10B981" trend={12} delay={0.05} />
-        <MetricCard title="Organizations" value={d.totalActiveOrganizations ?? 0} subtitle={`${d.totalSuspendedOrganizations ?? 0} suspended`} icon={Building2} color="#0D9488" trend={8} delay={0.1} />
-        <MetricCard title="Active Branches" value={d.activeSubscriptionsByPlan?.reduce((s, p) => s + p.count, 0) ?? 0} icon={GitBranch} color="#F59E0B" delay={0.15} />
-        <MetricCard title="Est. MRR" value={`₹${(d.estimatedMrrInr ?? 0).toLocaleString()}`} subtitle={`${d.payingSubscriptionCount ?? 0} paying`} icon={CreditCard} color="#EC4899" trend={15} delay={0.2} />
+        <MetricCard title="Total Users" value={totalUsers} icon={Users} color="#10B981" delay={0.05} />
+        <MetricCard title="Total Organizations" value={(d.totalActiveOrganizations ?? 0) + (d.totalSuspendedOrganizations ?? 0)} subtitle={`${d.totalSuspendedOrganizations ?? 0} suspended`} icon={Building2} color="#0D9488" delay={0.1} />
+        <MetricCard title="Total Workspaces" value={d.totalWorkspaces ?? 0} icon={Globe} color="#F59E0B" delay={0.15} />
+        <MetricCard title="Revenue Metrics" value={`INR ${(d.estimatedMrrInr ?? 0).toLocaleString()}`} subtitle={`${d.payingSubscriptionCount ?? 0} paying subscriptions`} icon={CreditCard} color="#EC4899" delay={0.2} />
       </div>
 
       {/* Secondary metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <MetricCard title="Individual Users" value={d.totalIndividualUsers ?? 0} icon={Users} color="#8B5CF6" delay={0.25} />
-        <MetricCard title="Organization Users" value={d.totalOrganizationUsers ?? 0} icon={Building2} color="#10B981" delay={0.3} />
-        <MetricCard title="30d Income" value={`₹${(d.totalSystemIncome30d ?? 0).toLocaleString()}`} icon={TrendingUp} color="#10B981" delay={0.35} />
-        <MetricCard title="30d Expense" value={`₹${(d.totalSystemExpense30d ?? 0).toLocaleString()}`} icon={TrendingDown} color="#EF4444" delay={0.4} />
+        <MetricCard title="Active Branches" value={d.activeBranches ?? 0} icon={GitBranch} color="#10B981" delay={0.3} />
+        <MetricCard title="Total Transactions" value={d.totalTransactions ?? 0} icon={WalletCards} color="#0D9488" delay={0.35} />
+        <MetricCard title="Active Sessions" value={d.activeSessions ?? 0} subtitle="Last 24 hours" icon={Activity} color="#F59E0B" delay={0.4} />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <MetricCard title="Organization Users" value={d.totalOrganizationUsers ?? 0} icon={Building2} color="#10B981" delay={0.45} />
+        <MetricCard title="30d Income" value={`INR ${(d.totalSystemIncome30d ?? 0).toLocaleString()}`} icon={TrendingUp} color="#10B981" delay={0.5} />
+        <MetricCard title="30d Expense" value={`INR ${(d.totalSystemExpense30d ?? 0).toLocaleString()}`} icon={TrendingDown} color="#EF4444" delay={0.55} />
+        <MetricCard title="30d Net" value={`INR ${(d.totalSystemNet30d ?? 0).toLocaleString()}`} icon={BarChart3} color="#EC4899" delay={0.6} />
       </div>
 
       {/* Charts row */}
@@ -137,7 +135,7 @@ export default function SuperAdminDashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-xs font-semibold text-gray-400">User Growth</p>
-              <p className="text-lg font-bold text-white">{d.cumulativeUsersByDay?.at(-1)?.value ?? 0}</p>
+              <p className="text-lg font-bold text-white">{totalUsers}</p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <Users size={14} className="text-emerald-400" />
@@ -160,20 +158,33 @@ export default function SuperAdminDashboard() {
           <MiniChart data={txGrowth} color="#0D9488" />
         </motion.div>
 
-        {/* Workspace growth */}
+        {/* Organization growth */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-xs font-semibold text-gray-400">Workspace Growth</p>
-              <p className="text-lg font-bold text-white">{d.cumulativeWorkspacesByDay?.at(-1)?.value ?? 0}</p>
+              <p className="text-xs font-semibold text-gray-400">Organization Growth</p>
+              <p className="text-lg font-bold text-white">{(d.totalActiveOrganizations ?? 0) + (d.totalSuspendedOrganizations ?? 0)}</p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
               <Globe size={14} className="text-amber-400" />
             </div>
           </div>
-          <MiniChart data={d.cumulativeWorkspacesByDay?.map(p => p.value) ?? []} color="#F59E0B" />
+          <MiniChart data={d.organizationGrowthByDay?.map(p => p.value) ?? []} color="#F59E0B" />
         </motion.div>
       </div>
+
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-400">Workspace Activity</p>
+            <p className="text-lg font-bold text-white">{d.workspaceActivityByDay?.slice(-7).reduce((s, p) => s + p.value, 0).toLocaleString() ?? 0}</p>
+          </div>
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+            <Activity size={14} className="text-emerald-400" />
+          </div>
+        </div>
+        <MiniChart data={d.workspaceActivityByDay?.map(p => p.value) ?? []} color="#10B981" />
+      </motion.div>
 
       {/* Subscription breakdown */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">

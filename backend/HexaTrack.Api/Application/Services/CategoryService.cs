@@ -5,7 +5,6 @@ using HexaTrack.Api.Application.Security;
 using HexaTrack.Api.Domain.Entities;
 using HexaTrack.Api.Infrastructure;
 using HexaTrack.Api.Infrastructure.Repositories;
-using DomainTransaction = HexaTrack.Api.Domain.Entities.Transaction;
 
 namespace HexaTrack.Api.Application.Services;
 
@@ -25,14 +24,14 @@ public interface ICategoryService
 public sealed class CategoryService(
     HexaTrackDbContext db,
     IUserScopedRepository<Category> categories,
-    IUserScopedRepository<DomainTransaction> transactions,
     ICurrentUser currentUser,
     ICurrentWorkspace currentWorkspace,
     IUnitOfWork unitOfWork) : ICategoryService
 {
     public async Task<IReadOnlyCollection<CategoryDto>> ListAsync(CancellationToken cancellationToken)
-        => await categories.ForUser(currentUser.UserId).AsNoTracking()
-            .Where(x => x.WorkspaceId == currentWorkspace.WorkspaceId && !x.IsArchived)
+        => await db.Categories.AsNoTracking()
+            .InWorkspace(currentWorkspace.WorkspaceId)
+            .Where(x => !x.IsArchived)
             .OrderBy(x => x.Type).ThenBy(x => x.ParentCategoryId).ThenBy(x => x.Name)
             .Select(x => new CategoryDto(x.Id, x.ParentCategoryId, x.Name, x.Type, x.Color, x.Icon))
             .ToListAsync(cancellationToken);
@@ -60,8 +59,9 @@ public sealed class CategoryService(
             workspaceId = currentWorkspace.WorkspaceId;
         }
 
-        var q = categories.ForUser(currentUser.UserId).AsNoTracking()
-            .Where(x => x.WorkspaceId == workspaceId && !x.IsArchived);
+        var q = db.Categories.AsNoTracking()
+            .InWorkspace(workspaceId)
+            .Where(x => !x.IsArchived);
 
         if (type.HasValue)
         {
@@ -80,7 +80,7 @@ public sealed class CategoryService(
         {
             if (request.ParentCategoryId.HasValue)
             {
-                bool parentExists = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId).AnyAsync(x => x.Id == request.ParentCategoryId.Value && x.ParentCategoryId == null, ct);
+                bool parentExists = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId).AnyAsync(x => x.Id == request.ParentCategoryId.Value && x.ParentCategoryId == null, ct);
                 if (!parentExists)
                 {
                     throw new InvalidOperationException("Parent category does not exist.");
@@ -107,7 +107,7 @@ public sealed class CategoryService(
     public Task<CategoryDto> UpdateAsync(Guid categoryId, UpdateCategoryRequest request, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            Category category = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            Category category = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                 .SingleOrDefaultAsync(x => x.Id == categoryId && !x.IsArchived, ct)
                 ?? throw new KeyNotFoundException("Category not found.");
 
@@ -137,14 +137,14 @@ public sealed class CategoryService(
 
     public async Task<IReadOnlyCollection<CategoryDto>> ListSubcategoriesAsync(Guid parentCategoryId, CancellationToken cancellationToken)
     {
-        bool parentOk = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+        bool parentOk = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
             .AnyAsync(x => x.Id == parentCategoryId && x.ParentCategoryId == null && !x.IsArchived, cancellationToken);
         if (!parentOk)
         {
             throw new KeyNotFoundException("Category not found.");
         }
 
-        return await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+        return await db.Categories.AsNoTracking().InWorkspace(currentWorkspace.WorkspaceId)
             .Where(x => x.ParentCategoryId == parentCategoryId && !x.IsArchived)
             .OrderBy(x => x.Name)
             .Select(x => new CategoryDto(x.Id, x.ParentCategoryId, x.Name, x.Type, x.Color, x.Icon))
@@ -154,7 +154,7 @@ public sealed class CategoryService(
     public Task<CategoryDto> CreateSubcategoryAsync(Guid parentCategoryId, CreateSubcategoryRequest request, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            Category parent = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            Category parent = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                 .SingleOrDefaultAsync(x => x.Id == parentCategoryId && x.ParentCategoryId == null && !x.IsArchived, ct)
                 ?? throw new KeyNotFoundException("Parent category not found.");
 
@@ -178,11 +178,11 @@ public sealed class CategoryService(
     public Task DeleteSubcategoryAsync(Guid parentCategoryId, Guid subcategoryId, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            Category sub = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            Category sub = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                 .SingleOrDefaultAsync(x => x.Id == subcategoryId && x.ParentCategoryId == parentCategoryId && !x.IsArchived, ct)
                 ?? throw new KeyNotFoundException("Subcategory not found.");
 
-            bool hasTransactions = await transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            bool hasTransactions = await db.Transactions.InWorkspace(currentWorkspace.WorkspaceId)
                 .AnyAsync(t => t.CategoryId == subcategoryId, ct);
             if (hasTransactions)
             {
@@ -195,7 +195,7 @@ public sealed class CategoryService(
     private Task SetArchiveStateAsync(Guid categoryId, bool archived, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            Category category = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            Category category = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                 .SingleOrDefaultAsync(x => x.Id == categoryId, ct)
                 ?? throw new KeyNotFoundException("Category not found.");
 
@@ -203,7 +203,7 @@ public sealed class CategoryService(
 
             if (category.ParentCategoryId is null)
             {
-                List<Category> children = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                List<Category> children = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                     .Where(x => x.ParentCategoryId == categoryId)
                     .ToListAsync(ct);
                 foreach (Category child in children)

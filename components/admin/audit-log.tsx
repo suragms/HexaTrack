@@ -13,13 +13,7 @@ interface AuditItem {
 }
 
 export function AuditLogPanel({ events }: { events?: AuditItem[] }) {
-  
-  const data = events || [
-     { id: '1', title: 'Workspace Lockdown Triggered', timestamp: '2 mins ago', userInitials: 'AD', role: 'Admin', status: 'Warning' },
-     { id: '2', title: 'API Token Rotation Completed', timestamp: '15 mins ago', userInitials: 'SYS', role: 'Admin', status: 'Success' },
-     { id: '3', title: 'Unauthorized Access Blocked', timestamp: '1 hour ago', userInitials: 'IP88', role: 'User', status: 'Denied' },
-     { id: '4', title: 'New Staff Node Attached', timestamp: '4 hours ago', userInitials: 'JD', role: 'User', status: 'Success' }
-  ];
+  const data = events ?? [];
 
   const getStatusIcon = (status: string) => {
      switch(status) {
@@ -50,6 +44,11 @@ export function AuditLogPanel({ events }: { events?: AuditItem[] }) {
        </div>
 
        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+          {data.length === 0 && (
+             <div className="flex h-full min-h-40 items-center justify-center rounded-2xl border border-white/[0.04] bg-white/[0.01] px-4 text-center text-xs font-semibold text-on-surface-variant">
+                No audit events found in PostgreSQL.
+             </div>
+          )}
           {data.map((event, i) => (
              <motion.div
                 key={event.id}

@@ -34,12 +34,11 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
             return;
         }
 
-        if (!context.Request.Headers.TryGetValue("X-Workspace-Id", out Microsoft.Extensions.Primitives.StringValues headerValues) ||
-            !Guid.TryParse(headerValues.ToString(), out Guid workspaceId))
+        Guid? requestedWorkspaceId = null;
+        if (context.Request.Headers.TryGetValue("X-Workspace-Id", out Microsoft.Extensions.Primitives.StringValues headerValues) &&
+            Guid.TryParse(headerValues.ToString(), out Guid parsedWorkspaceId))
         {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await context.Response.WriteAsJsonAsync(new { error = "X-Workspace-Id header is required and must be a valid GUID." });
-            return;
+            requestedWorkspaceId = parsedWorkspaceId;
         }
 
         string? userIdStr = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -62,6 +61,14 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
             return;
         }
 
+        Guid workspaceId = requestedWorkspaceId ?? await ResolveDefaultWorkspaceIdAsync(db, user, context.RequestAborted);
+        if (workspaceId == Guid.Empty)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new { error = "No workspace is available for this account." });
+            return;
+        }
+
         // Super Admin always allowed access
         bool allowed = user.IsSuperAdmin;
 
@@ -79,22 +86,9 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
 
         if (!allowed)
         {
-            // Workspace ownership or Organization scoping check
-            var workspace = await db.Set<Workspace>()
+            allowed = await db.Set<Workspace>()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(w => w.Id == workspaceId, context.RequestAborted);
-
-            if (workspace != null)
-            {
-                if (workspace.OwnerUserId == userId)
-                {
-                    allowed = true;
-                }
-                else if (user.OrganizationId != null && workspace.OrganizationId == user.OrganizationId)
-                {
-                    allowed = true;
-                }
-            }
+                .AnyAsync(w => w.Id == workspaceId && w.OwnerUserId == userId, context.RequestAborted);
         }
 
         if (!allowed)
@@ -106,6 +100,55 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
 
         CurrentWorkspace.SetWorkspace(context, workspaceId);
         await next(context);
+    }
+
+    private static async Task<Guid> ResolveDefaultWorkspaceIdAsync(HexaTrackDbContext db, User user, CancellationToken cancellationToken)
+    {
+        if (user.BranchId.HasValue)
+        {
+            Guid? branchWorkspaceId = await db.Set<Branch>().AsNoTracking()
+                .Where(b => b.Id == user.BranchId.Value)
+                .Select(b => b.WorkspaceId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (branchWorkspaceId.HasValue)
+            {
+                return branchWorkspaceId.Value;
+            }
+        }
+
+        if (user.OrganizationId.HasValue && user.OrganizationRole == "Owner")
+        {
+            Guid? organizationWorkspaceId = await db.Set<Workspace>().AsNoTracking()
+                .Where(w => w.OrganizationId == user.OrganizationId.Value && w.Mode == HexaTrack.Api.Domain.WorkspaceMode.Organization)
+                .OrderByDescending(w => w.IsDefault)
+                .Select(w => (Guid?)w.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (organizationWorkspaceId.HasValue)
+            {
+                return organizationWorkspaceId.Value;
+            }
+        }
+
+        Guid? workspaceId = await db.Set<WorkspaceMember>().AsNoTracking()
+            .Where(m => m.UserId == user.Id)
+            .OrderByDescending(m => m.Workspace!.IsDefault)
+            .Select(m => (Guid?)m.WorkspaceId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (workspaceId.HasValue)
+        {
+            return workspaceId.Value;
+        }
+
+        workspaceId = await db.Set<Workspace>().AsNoTracking()
+            .Where(w => w.OwnerUserId == user.Id)
+            .OrderByDescending(w => w.IsDefault)
+            .Select(w => (Guid?)w.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return workspaceId ?? Guid.Empty;
     }
 
     private static bool RequiresWorkspaceHeader(HttpRequest request)
@@ -149,9 +192,7 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
             path.StartsWithSegments("/api/backup") ||
             path.StartsWithSegments("/api/groups") ||
             path.StartsWithSegments("/api/owner") ||
-            path.StartsWithSegments("/api/staff") ||
-            path.StartsWithSegments("/api/ledger") ||
-            path.StartsWithSegments("/api/analytics"))
+            path.StartsWithSegments("/api/staff"))
         {
             return false;
         }

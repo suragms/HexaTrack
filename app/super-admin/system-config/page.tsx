@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { hexaTrackApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import type { FeatureFlagDto } from '@/lib/types';
@@ -26,10 +26,24 @@ export default function SystemConfigPage() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchFlags = useCallback(async () => {
     if (!accessToken) return;
-    hexaTrackApi.admin.featureFlags().then(f => { setFlags(f); setLoading(false); }).catch(() => setLoading(false));
+    setLoading(true);
+    try {
+      setFlags(await hexaTrackApi.admin.featureFlags());
+    } finally {
+      setLoading(false);
+    }
   }, [accessToken]);
+
+  useEffect(() => {
+    void fetchFlags();
+  }, [fetchFlags]);
+
+  useEffect(() => {
+    window.addEventListener('hexatrack:feature-flags-updated', fetchFlags);
+    return () => window.removeEventListener('hexatrack:feature-flags-updated', fetchFlags);
+  }, [fetchFlags]);
 
   const handleToggle = async (key: string, currentValue: string) => {
     setToggling(key);

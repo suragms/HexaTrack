@@ -3,6 +3,7 @@ using System;
 using HexaTrack.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HexaTrack.Api.Migrations
 {
     [DbContext(typeof(HexaTrackDbContext))]
-    partial class HexaTrackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518133955_SuperAdminEnterpriseIndexes")]
+    partial class SuperAdminEnterpriseIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -430,34 +433,6 @@ namespace HexaTrack.Api.Migrations
                     b.HasIndex("OrganizationId", "IsEnabled");
 
                     b.ToTable("Branches");
-                });
-
-            modelBuilder.Entity("HexaTrack.Api.Domain.Entities.BranchFeatureToggle", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("FeatureKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BranchId", "FeatureKey")
-                        .IsUnique();
-
-                    b.ToTable("BranchFeatureToggles");
                 });
 
             modelBuilder.Entity("HexaTrack.Api.Domain.Entities.Category", b =>
@@ -1358,34 +1333,6 @@ namespace HexaTrack.Api.Migrations
                     b.ToTable("Workspaces");
                 });
 
-            modelBuilder.Entity("HexaTrack.Api.Domain.Entities.WorkspaceFeatureToggle", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("FeatureKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("WorkspaceId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkspaceId", "FeatureKey")
-                        .IsUnique();
-
-                    b.ToTable("WorkspaceFeatureToggles");
-                });
-
             modelBuilder.Entity("HexaTrack.Api.Domain.Entities.WorkspaceInvite", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1557,17 +1504,6 @@ namespace HexaTrack.Api.Migrations
                     b.Navigation("Organization");
 
                     b.Navigation("Workspace");
-                });
-
-            modelBuilder.Entity("HexaTrack.Api.Domain.Entities.BranchFeatureToggle", b =>
-                {
-                    b.HasOne("HexaTrack.Api.Domain.Entities.Branch", "Branch")
-                        .WithMany()
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("HexaTrack.Api.Domain.Entities.Category", b =>
@@ -1780,17 +1716,6 @@ namespace HexaTrack.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Owner");
-                });
-
-            modelBuilder.Entity("HexaTrack.Api.Domain.Entities.WorkspaceFeatureToggle", b =>
-                {
-                    b.HasOne("HexaTrack.Api.Domain.Entities.Workspace", "Workspace")
-                        .WithMany()
-                        .HasForeignKey("WorkspaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("HexaTrack.Api.Domain.Entities.WorkspaceInvite", b =>

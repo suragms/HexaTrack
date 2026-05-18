@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ClipboardList,
   Command,
+  Download,
   CreditCard,
   Eye,
   EyeOff,
@@ -35,6 +36,7 @@ import {
 } from 'lucide-react';
 import { ApiError, hexaTrackApi } from '@/lib/api';
 import type {
+  AdminAlert,
   AdminAnalyticsDashboard,
   AdminAnalyticsOverview,
   AdminAuditListResult,
@@ -208,6 +210,16 @@ function AdminDashboardContent() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditQuery, setAuditQuery] = useState('');
+  const [auditActionKeyword, setAuditActionKeyword] = useState('');
+  const [auditTargetType, setAuditTargetType] = useState('');
+
+  const [activeAlerts, setActiveAlerts] = useState<AdminAlert[] | null>(null);
+  const [alertsHistory, setAlertsHistory] = useState<AdminAlert[] | null>(null);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const [alertsTab, setAlertsTab] = useState<'active' | 'history'>('active');
+  const [alertsHistoryPage, setAlertsHistoryPage] = useState(1);
   const [aiData, setAiData] = useState<AiUsageSummaryResult | null>(null);
   const [aiDays, setAiDays] = useState<AiUsageDayFilter>(30);
   const [aiLoading, setAiLoading] = useState(false);
@@ -545,6 +557,19 @@ function AdminDashboardContent() {
 
   useEffect(() => {
     if (section !== 'flags') return;
+
+    const handleFeatureFlagsUpdated = () => {
+      void loadFlags();
+      if (orgFlagsOrgId) void loadOrgFlags(orgFlagsOrgId);
+      if (userFlagsUserId) void loadUserFlags(userFlagsUserId);
+    };
+
+    window.addEventListener('hexatrack:feature-flags-updated', handleFeatureFlagsUpdated);
+    return () => window.removeEventListener('hexatrack:feature-flags-updated', handleFeatureFlagsUpdated);
+  }, [loadFlags, loadOrgFlags, loadUserFlags, orgFlagsOrgId, section, userFlagsUserId]);
+
+  useEffect(() => {
+    if (section !== 'flags') return;
     async function loadLookups() {
       try {
         const [orgs, usersRes] = await Promise.all([
@@ -565,7 +590,13 @@ function AdminDashboardContent() {
     setAuditLoading(true);
     setAuditError(null);
     try {
-      const result = await hexaTrackApi.admin.auditLog(auditPage, AUDIT_PAGE_SIZE);
+      const result = await hexaTrackApi.admin.auditLog(
+        auditPage,
+        AUDIT_PAGE_SIZE,
+        auditQuery || undefined,
+        auditActionKeyword || undefined,
+        auditTargetType || undefined
+      );
       setAuditData(result);
     } catch (e) {
       const msg =
@@ -579,12 +610,61 @@ function AdminDashboardContent() {
     } finally {
       setAuditLoading(false);
     }
-  }, [auditPage, hydrated, isSuperAdmin, user]);
+  }, [auditPage, auditQuery, auditActionKeyword, auditTargetType, hydrated, isSuperAdmin, user]);
+
+  const loadAlerts = useCallback(async () => {
+    if (!hydrated || !user || !isSuperAdmin) return;
+    setAlertsLoading(true);
+    setAlertsError(null);
+    try {
+      const active = await hexaTrackApi.admin.alerts.getActive();
+      setActiveAlerts(active);
+    } catch (e) {
+      setAlertsError(e instanceof Error ? e.message : 'Failed to load platform alerts.');
+    } finally {
+      setAlertsLoading(false);
+    }
+  }, [hydrated, isSuperAdmin, user]);
+
+  const loadAlertsHistory = useCallback(async () => {
+    if (!hydrated || !user || !isSuperAdmin) return;
+    try {
+      const history = await hexaTrackApi.admin.alerts.getHistory(alertsHistoryPage, 30);
+      setAlertsHistory(history);
+    } catch (e) {
+      console.error('Failed to load alerts history', e);
+    }
+  }, [alertsHistoryPage, hydrated, isSuperAdmin, user]);
+
+  const handleResolveAlert = async (alertId: string) => {
+    try {
+      await hexaTrackApi.admin.alerts.resolve(alertId);
+      void loadAlerts();
+      void loadAlertsHistory();
+    } catch (e) {
+      console.error('Failed to resolve alert', e);
+    }
+  };
+
+  const handleExportAudit = useCallback(() => {
+    const url = hexaTrackApi.admin.exportAuditLogUrl(
+      auditQuery || undefined,
+      auditActionKeyword || undefined,
+      auditTargetType || undefined
+    );
+    window.open(url, '_blank');
+  }, [auditQuery, auditActionKeyword, auditTargetType]);
 
   useEffect(() => {
     if (section !== 'audit') return;
     void loadAudit();
-  }, [loadAudit, section]);
+  }, [loadAudit, section, auditQuery, auditActionKeyword, auditTargetType, auditPage]);
+
+  useEffect(() => {
+    if (section !== 'notifications') return;
+    void loadAlerts();
+    void loadAlertsHistory();
+  }, [loadAlerts, loadAlertsHistory, section, alertsHistoryPage]);
 
   const loadAiUsage = useCallback(async () => {
     if (!hydrated || !user || !isSuperAdmin) return;
@@ -1517,9 +1597,78 @@ function AdminDashboardContent() {
 
           {section === 'audit' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-[#F5F7FA]">Audit Logs</h2>
-                <p className="text-sm text-[#8B9BB4]">Track system operations and platform-level modifications.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#F5F7FA]">Audit Logs</h2>
+                  <p className="text-sm text-[#8B9BB4]">Track system operations and platform-level modifications.</p>
+                </div>
+                <button
+                  onClick={handleExportAudit}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black tracking-widest uppercase bg-cyan/15 text-cyan hover:bg-cyan/25 active:scale-95 transition-all shadow-[0_0_15px_rgba(34,211,238,0.15)] border border-cyan/20 font-label-caps"
+                >
+                  <Download size={13} />
+                  Export Ledger CSV
+                </button>
+              </div>
+
+              {/* Advanced Search & Filter Suite */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#0E152B]/40 border border-white/[0.04] p-4 rounded-[22px] backdrop-blur-md">
+                {/* Search query input */}
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8B9BB4]">
+                    <Search size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    value={auditQuery}
+                    onChange={(e) => { setAuditQuery(e.target.value); setAuditPage(1); }}
+                    placeholder="Search Actor, Action, IP..."
+                    className="w-full pl-10 pr-4 py-2 rounded-xl text-xs font-semibold bg-[#121A22] border border-white/[0.06] text-[#F5F7FA] focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30 placeholder-[#8B9BB4]/50 transition-all"
+                  />
+                  {auditQuery && (
+                    <button
+                      onClick={() => setAuditQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B9BB4] hover:text-white text-[10px]"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Target Type Filter */}
+                <div>
+                  <select
+                    value={auditTargetType}
+                    onChange={(e) => { setAuditTargetType(e.target.value); setAuditPage(1); }}
+                    className="w-full px-4 py-2 rounded-xl text-xs font-semibold bg-[#121A22] border border-white/[0.06] text-[#F5F7FA] focus:outline-none focus:border-cyan/50 transition-all"
+                  >
+                    <option value="">All Scopes (Target Types)</option>
+                    <option value="User">User Accounts</option>
+                    <option value="Organization">Organizations</option>
+                    <option value="Workspace">Workspace Ledgers</option>
+                    <option value="Branch">Branches</option>
+                    <option value="Staff">Staff Connections</option>
+                    <option value="FeatureFlag">Feature Override Toggles</option>
+                    <option value="GlobalSetting">Global System Settings</option>
+                  </select>
+                </div>
+
+                {/* Action Keyword Filter */}
+                <div>
+                  <select
+                    value={auditActionKeyword}
+                    onChange={(e) => { setAuditActionKeyword(e.target.value); setAuditPage(1); }}
+                    className="w-full px-4 py-2 rounded-xl text-xs font-semibold bg-[#121A22] border border-white/[0.06] text-[#F5F7FA] focus:outline-none focus:border-cyan/50 transition-all"
+                  >
+                    <option value="">All Action Vectors</option>
+                    <option value="auth">Authentication Attempts</option>
+                    <option value="create">Entity Creations</option>
+                    <option value="delete">Entity Deletions</option>
+                    <option value="locked">Account Locks</option>
+                    <option value="featureflag">Feature Flag Mutations</option>
+                    <option value="setting">Global Setting Updates</option>
+                  </select>
+                </div>
               </div>
 
               {auditError && (
@@ -1759,7 +1908,150 @@ function AdminDashboardContent() {
               </div>
             </div>
           )}
-          {['transactions', 'subscriptions', 'notifications', 'security'].includes(section) && (
+          {section === 'notifications' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#F5F7FA]">Enterprise Alert Center</h2>
+                  <p className="text-sm text-[#8B9BB4]">Real-time database-driven health and security telemetry monitors.</p>
+                </div>
+
+                <div className="bg-[#0E152B] border border-white/[0.04] p-1 rounded-xl flex gap-1 self-start">
+                  <button
+                    onClick={() => setAlertsTab('active')}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${
+                      alertsTab === 'active' ? 'bg-white/5 text-cyan' : 'text-[#8B9BB4] opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    Active Signals ({activeAlerts?.length ?? 0})
+                  </button>
+                  <button
+                    onClick={() => setAlertsTab('history')}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${
+                      alertsTab === 'history' ? 'bg-white/5 text-cyan' : 'text-[#8B9BB4] opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    Resolution Log
+                  </button>
+                </div>
+              </div>
+
+              {alertsError && (
+                <div className="flex items-center justify-between rounded-xl border border-[#FF5C75]/20 bg-[#FF5C75]/10 p-4 text-sm text-[#FF5C75]">
+                  <span>{alertsError}</span>
+                  <button onClick={() => void loadAlerts()} className="font-bold hover:underline">Retry</button>
+                </div>
+              )}
+
+              {alertsTab === 'active' ? (
+                <div className="space-y-4">
+                  {alertsLoading && !activeAlerts ? (
+                    <div className="h-48 animate-pulse rounded-[24px] bg-[#0E152B]/40 border border-white/[0.04]" />
+                  ) : activeAlerts && activeAlerts.length === 0 ? (
+                    <div className="flex flex-col items-center py-20 bg-[#121A22] border border-white/[0.05] border-dashed rounded-3xl text-[#8B9BB4]">
+                      <Activity className="h-12 w-12 opacity-50 mb-3 text-emerald animate-pulse" />
+                      <p className="text-sm font-bold text-white">All Subsystems Nominal</p>
+                      <p className="text-xs mt-1 text-[#8B9BB4]/80">No active health or security telemetry alerts flagged.</p>
+                    </div>
+                  ) : activeAlerts ? (
+                    <div className="grid grid-cols-1 gap-4">
+                      {activeAlerts.map((alert) => {
+                        const isCritical = alert.severity === 'Critical';
+                        const isHigh = alert.severity === 'High';
+                        const badgeColor = isCritical
+                          ? 'bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
+                          : isHigh
+                          ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                          : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+
+                        return (
+                          <motion.div
+                            key={alert.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-[22px] border bg-[#0E152B]/40 backdrop-blur-md transition-all ${
+                              isCritical ? 'border-red-500/25 hover:border-red-500/40' : 'border-white/[0.04] hover:border-cyan/20'
+                            }`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={`w-10 h-10 rounded-xl bg-[#121A22] border border-white/[0.05] flex items-center justify-center ${
+                                isCritical ? 'text-red-400 animate-pulse' : 'text-cyan'
+                              }`}>
+                                <AlertCircle size={16} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-[#F5F7FA] text-sm">{alert.title}</h4>
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase border ${badgeColor}`}>
+                                    {alert.severity}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-[#8B9BB4] mt-1.5 max-w-2xl leading-relaxed">{alert.message}</p>
+                                <p className="text-[10px] text-[#8B9BB4]/60 mt-2 font-mono tabular-nums">Flagged {new Date(alert.createdAt).toLocaleString()}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleResolveAlert(alert.id)}
+                              className="px-4 py-2 shrink-0 rounded-xl text-[10px] font-black tracking-widest uppercase border border-white/[0.06] bg-[#121A22] hover:bg-white/[0.04] text-white active:scale-95 transition-all font-label-caps"
+                            >
+                              Resolve
+                            </button>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {!alertsHistory ? (
+                    <div className="h-48 animate-pulse rounded-[24px] bg-[#0E152B]/40 border border-white/[0.04]" />
+                  ) : alertsHistory.length === 0 ? (
+                    <div className="flex flex-col items-center py-20 bg-[#121A22] border border-white/[0.05] rounded-3xl text-[#8B9BB4]">
+                      <ClipboardList className="h-10 w-10 opacity-50 mb-2" />
+                      <p className="text-sm">No resolved alerts log history present.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#121A22]">
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                              <th className="px-6 py-4 font-medium text-[#8B9BB4]">Timestamp</th>
+                              <th className="px-6 py-4 font-medium text-[#8B9BB4]">Event</th>
+                              <th className="px-6 py-4 font-medium text-[#8B9BB4]">Resolved By</th>
+                              <th className="px-6 py-4 font-medium text-[#8B9BB4]">Resolution Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/[0.04]">
+                            {alertsHistory.map((h) => (
+                              <tr key={h.id} className="hover:bg-white/[0.01]">
+                                <td className="px-6 py-4 text-[#8B9BB4] whitespace-nowrap text-xs font-mono tabular-nums">
+                                  {new Date(h.createdAt).toLocaleString()}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div>
+                                    <p className="font-bold text-[#F5F7FA] text-xs">{h.title}</p>
+                                    <p className="text-[11px] text-[#8B9BB4] mt-0.5">{h.message}</p>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-[#8B9BB4] text-xs">{h.resolvedBy}</td>
+                                <td className="px-6 py-4 text-[#8B9BB4] whitespace-nowrap text-xs font-mono tabular-nums">
+                                  {h.resolvedAt ? new Date(h.resolvedAt).toLocaleString() : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {['transactions', 'subscriptions', 'security'].includes(section) && (
             <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-[#121A22] border border-white/[0.06] text-[#8B9BB4] shadow-xl mb-6">
                  {(() => {

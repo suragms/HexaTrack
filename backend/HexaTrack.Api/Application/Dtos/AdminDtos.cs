@@ -46,7 +46,8 @@ public sealed record AdminAuditLogDto(
     string? TargetType,
     Guid? TargetId,
     string? IpAddress,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Severity);
 public sealed record UpsertFeatureFlagRequest(string Value);
 public sealed record FeatureFlagDto(string Key, string Value, DateTimeOffset UpdatedAt);
 public sealed record InviteAcceptRequest(string Token, string Password);
@@ -55,6 +56,8 @@ public sealed record CreateInviteResponse(string Token);
 public sealed record SetUserSubscriptionRequest(SubscriptionPlan Plan);
 public sealed record ResetPasswordRequest(string Password);
 public sealed record OrganizationFeatureToggleDto(Guid Id, Guid OrganizationId, string FeatureKey, bool IsEnabled, DateTimeOffset UpdatedAt);
+public sealed record WorkspaceFeatureToggleDto(Guid Id, Guid WorkspaceId, string FeatureKey, bool IsEnabled, DateTimeOffset UpdatedAt);
+public sealed record BranchFeatureToggleDto(Guid Id, Guid BranchId, string FeatureKey, bool IsEnabled, DateTimeOffset UpdatedAt);
 public sealed record UserFeatureToggleDto(Guid Id, Guid UserId, string FeatureKey, bool IsEnabled, DateTimeOffset UpdatedAt);
 public sealed record UpsertToggleRequest(bool IsEnabled);
 public sealed record GlobalSettingDto(string Key, string Value, DateTimeOffset UpdatedAt);
@@ -71,6 +74,9 @@ public sealed record AdminWorkspaceListItemDto(
     int MemberCount,
     SubscriptionPlan? OwnerSubscriptionPlan);
 public sealed record AdminWorkspaceListResult(IReadOnlyList<AdminWorkspaceListItemDto> Items, int Page, int PageSize, int TotalCount);
+public sealed record AdminCreateWorkspaceRequest(Guid OwnerUserId, string Name, WorkspaceType Type, WorkspaceMode Mode, string Currency, Guid? OrganizationId);
+public sealed record AdminWorkspaceMemberRequest(Guid UserId, WorkspaceRole Role);
+public sealed record AdminWorkspaceRoleRequest(WorkspaceRole Role);
 
 public sealed record AdminAnalyticsOverviewDto(
     int TotalUsers,
@@ -116,7 +122,13 @@ public sealed record AdminAnalyticsDashboardDto(
     int TotalActiveOrganizations,
     int TotalSuspendedOrganizations,
     int TotalIndividualUsers,
-    int TotalOrganizationUsers);
+    int TotalOrganizationUsers,
+    int TotalWorkspaces,
+    int ActiveBranches,
+    int TotalTransactions,
+    int ActiveSessions,
+    IReadOnlyList<AdminTimeSeriesPointDto> OrganizationGrowthByDay,
+    IReadOnlyList<AdminTimeSeriesPointDto> WorkspaceActivityByDay);
 
 public sealed record CreateOrganizationRequest(string Name, string? Slug, OrgPlan? Plan, string? Currency, int MaxBranches, int MaxStaff, string OwnerName, string OwnerEmail, string OwnerPassword);
 public sealed record CreateBranchRequest(Guid OrganizationId, string Name, string? Code, string? Currency, string? Timezone, string? Address, string? Phone);

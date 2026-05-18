@@ -118,6 +118,15 @@ export type AdminWorkspaceListResult = {
   totalCount: number;
 };
 
+export type AdminCreateWorkspaceRequest = {
+  ownerUserId: string;
+  name: string;
+  type: WorkspaceType;
+  mode: 'Individual' | 'Organization' | 'Branch' | 'Enterprise';
+  currency: string;
+  organizationId?: string | null;
+};
+
 export type FeatureFlagDto = {
   key: string;
   value: string;
@@ -132,6 +141,7 @@ export type AdminAuditLogDto = {
   targetId: string | null;
   ipAddress: string | null;
   createdAt: string;
+  severity: 'Info' | 'Medium' | 'High';
 };
 
 export type AdminAuditListResult = {
@@ -139,6 +149,18 @@ export type AdminAuditListResult = {
   page: number;
   pageSize: number;
   totalCount: number;
+};
+
+export type AdminAlert = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  severity: 'Info' | 'Low' | 'Medium' | 'High' | 'Critical';
+  isResolved: boolean;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
 };
 
 export type AiUsageSummaryRow = {
@@ -212,6 +234,12 @@ export type AdminAnalyticsDashboard = {
   totalSuspendedOrganizations: number;
   totalIndividualUsers: number;
   totalOrganizationUsers: number;
+  totalWorkspaces: number;
+  activeBranches: number;
+  totalTransactions: number;
+  activeSessions: number;
+  organizationGrowthByDay: AdminTimeSeriesPoint[];
+  workspaceActivityByDay: AdminTimeSeriesPoint[];
 };
 
 export type GlobalSettingDto = {
@@ -621,6 +649,22 @@ export type PricingConfiguration = {
 export type OrganizationFeatureToggleDto = {
   id: string;
   organizationId: string;
+  featureKey: string;
+  isEnabled: boolean;
+  updatedAt: string;
+};
+
+export type WorkspaceFeatureToggleDto = {
+  id: string;
+  workspaceId: string;
+  featureKey: string;
+  isEnabled: boolean;
+  updatedAt: string;
+};
+
+export type BranchFeatureToggleDto = {
+  id: string;
+  branchId: string;
   featureKey: string;
   isEnabled: boolean;
   updatedAt: string;

@@ -57,10 +57,7 @@ type PersistedFinanceWorkspace = Pick<
 const FINANCE_STORAGE_KEY = 'hexatrack.finance-cache.v1';
 const recurring: RecurringTransaction[] = [];
 
-const groupExpenses: GroupExpense[] = [
-  { id: 'group-1', description: 'Team dinner', amount: 186, currency: 'USD', splitMethod: 'Equal', expenseOn: '2026-05-02', people: ['You', 'Asha', 'Ravi'] },
-  { id: 'group-2', description: 'Weekend stay', amount: 420, currency: 'USD', splitMethod: 'Custom', expenseOn: '2026-04-26', people: ['You', 'Maya', 'Dev'] },
-];
+const groupExpenses: GroupExpense[] = [];
 
 function makeReport(rows: Transaction[]): ReportSummary {
   const income = rows.filter((row) => row.type === 'Income').reduce((sum, row) => sum + row.amount, 0);
@@ -69,14 +66,22 @@ function makeReport(rows: Transaction[]): ReportSummary {
     income,
     expense,
     net: income - expense,
-    cashflow: [
-      { period: '2026-02-01', income: 6900, expense: 3720, net: 3180 },
-      { period: '2026-03-01', income: 7100, expense: 4020, net: 3080 },
-      { period: '2026-04-01', income: 7200, expense: 3860, net: 3340 },
-      { period: '2026-05-01', income, expense, net: income - expense },
-    ],
+    cashflow: buildCashflow(rows),
     spendingByCategory: [],
   };
+}
+
+function buildCashflow(rows: Transaction[]) {
+  const buckets = new Map<string, { period: string; income: number; expense: number; net: number }>();
+  for (const row of rows) {
+    const period = `${row.occurredOn.slice(0, 7)}-01`;
+    const current = buckets.get(period) ?? { period, income: 0, expense: 0, net: 0 };
+    if (row.type === 'Income') current.income += row.amount;
+    if (row.type === 'Expense') current.expense += row.amount;
+    current.net = current.income - current.expense;
+    buckets.set(period, current);
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.period.localeCompare(b.period));
 }
 
 function readCachedWorkspace(): PersistedFinanceWorkspace | null {
@@ -117,17 +122,12 @@ function cacheWorkspace(workspace: Omit<PersistedFinanceWorkspace, 'savedAt'>) {
  */
 async function ensureWorkspaceReady(): Promise<string> {
   const ws = useWorkspaceStore.getState();
-  if (ws.activeWorkspaceId) return ws.activeWorkspaceId;
 
-  // Hydrate from localStorage first (synchronous)
   if (!ws.hydrated) {
     ws.hydrate();
-    const afterHydrate = useWorkspaceStore.getState().activeWorkspaceId;
-    if (afterHydrate) return afterHydrate;
   }
 
-  // Fetch workspaces from server and pick one
-  await ws.ensureActiveWorkspace();
+  await useWorkspaceStore.getState().ensureActiveWorkspace();
   const final = useWorkspaceStore.getState().activeWorkspaceId;
   if (!final) {
     throw new Error('No workspace available. Please create or join a workspace first.');

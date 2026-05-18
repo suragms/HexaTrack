@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HexaTrack.Api.Application.Dtos;
 using HexaTrack.Api.Domain;
+using HexaTrack.Api.Domain.Entities;
 using HexaTrack.Api.Infrastructure;
 
 namespace HexaTrack.Api.Application.Services;
@@ -98,16 +99,19 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
             .Select(g => new AdminSubscriptionTierDto(g.Key.ToString(), g.Count()))
             .ToListAsync(cancellationToken);
 
+        List<PricingConfiguration> activePricingRows = await db.PricingConfigurations.AsNoTracking()
+            .Where(p => p.IsActive)
+            .OrderByDescending(p => p.UpdatedAt)
+            .ToListAsync(cancellationToken);
+        Dictionary<string, decimal> activePlanPrices = activePricingRows
+            .GroupBy(p => p.PlanName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().MonthlyPrice, StringComparer.OrdinalIgnoreCase);
+
         int payingCount = 0;
         decimal mrrInr = 0;
         foreach (AdminSubscriptionTierDto tier in tiers)
         {
-            if (!Enum.TryParse(tier.Plan, out SubscriptionPlan plan))
-            {
-                continue;
-            }
-
-            decimal price = PlanMonthlyInr(plan);
+            decimal price = activePlanPrices.GetValueOrDefault(tier.Plan);
             if (price <= 0)
             {
                 continue;
@@ -139,6 +143,22 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
             .Select(g => new { Day = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
         Dictionary<DateOnly, int> paidSubDict = paidSubGroups.ToDictionary(x => x.Day, x => x.Count);
+
+        int baselineOrgs = await db.Organizations.AsNoTracking()
+            .CountAsync(o => o.CreatedAt < fromDateTime, cancellationToken);
+        var orgGroups = await db.Organizations.AsNoTracking()
+            .Where(o => o.CreatedAt >= fromDateTime)
+            .GroupBy(o => DateOnly.FromDateTime(o.CreatedAt.UtcDateTime.Date))
+            .Select(g => new { Day = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+        Dictionary<DateOnly, int> orgDict = orgGroups.ToDictionary(x => x.Day, x => x.Count);
+
+        var workspaceActivityGroups = await db.Transactions.AsNoTracking()
+            .Where(t => t.OccurredOn >= start && t.OccurredOn <= today)
+            .GroupBy(t => t.OccurredOn)
+            .Select(g => new { Day = g.Key, Count = g.Select(t => t.WorkspaceId).Distinct().Count() })
+            .ToListAsync(cancellationToken);
+        Dictionary<DateOnly, int> workspaceActivityDict = workspaceActivityGroups.ToDictionary(x => x.Day, x => x.Count);
 
         var rawCats = await db.Transactions.AsNoTracking()
             .Where(t => t.Type == TransactionType.Expense && t.OccurredOn >= start && t.OccurredOn <= today)
@@ -173,6 +193,15 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
         int suspendedOrgs = await db.Organizations.AsNoTracking().CountAsync(o => o.IsSuspended, cancellationToken);
         int individualUsers = await db.Users.AsNoTracking().CountAsync(u => u.OrganizationId == null && !u.IsSuperAdmin, cancellationToken);
         int organizationUsers = await db.Users.AsNoTracking().CountAsync(u => u.OrganizationId != null, cancellationToken);
+        int totalWorkspaces = await db.Workspaces.AsNoTracking().CountAsync(cancellationToken);
+        int activeBranches = await db.Branches.AsNoTracking().CountAsync(b => b.IsEnabled, cancellationToken);
+        int totalTransactions = await db.Transactions.AsNoTracking().CountAsync(cancellationToken);
+        DateTimeOffset activeSessionSince = DateTimeOffset.UtcNow.AddHours(-24);
+        int activeSessions = await db.AdminAuditLogs.AsNoTracking()
+            .Where(a => a.Action.Contains("login") && !a.Action.Contains("failed") && a.CreatedAt >= activeSessionSince)
+            .Select(a => a.ActorUserId)
+            .Distinct()
+            .CountAsync(cancellationToken);
 
         List<AdminTimeSeriesPointDto> newUsers = [];
         List<AdminTimeSeriesPointDto> cumUsers = [];
@@ -183,9 +212,12 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
         List<AdminTimeSeriesPointDto> txSeries = [];
         List<AdminTimeSeriesPointDto> paidSubSeries = [];
         List<AdminTokenCostDayDto> tokenCostSeries = [];
+        List<AdminTimeSeriesPointDto> orgGrowthSeries = [];
+        List<AdminTimeSeriesPointDto> workspaceActivitySeries = [];
 
         int runUser = baselineUsers;
         int runWs = baselineWs;
+        int runOrg = baselineOrgs;
         for (DateOnly d = start; d <= today; d = d.AddDays(1))
         {
             int nu = userDict.GetValueOrDefault(d);
@@ -204,6 +236,10 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
             activeSeries.Add(new AdminTimeSeriesPointDto(ds, activeDict.GetValueOrDefault(d)));
             txSeries.Add(new AdminTimeSeriesPointDto(ds, txDict.GetValueOrDefault(d)));
             paidSubSeries.Add(new AdminTimeSeriesPointDto(ds, paidSubDict.GetValueOrDefault(d)));
+            int no = orgDict.GetValueOrDefault(d);
+            runOrg += no;
+            orgGrowthSeries.Add(new AdminTimeSeriesPointDto(ds, runOrg));
+            workspaceActivitySeries.Add(new AdminTimeSeriesPointDto(ds, workspaceActivityDict.GetValueOrDefault(d)));
         }
 
         return new AdminAnalyticsDashboardDto(
@@ -227,7 +263,13 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
             activeOrgs,
             suspendedOrgs,
             individualUsers,
-            organizationUsers);
+            organizationUsers,
+            totalWorkspaces,
+            activeBranches,
+            totalTransactions,
+            activeSessions,
+            orgGrowthSeries,
+            workspaceActivitySeries);
     }
 
     public async Task<IReadOnlyList<AdminExpenseCategoryAggDto>> GetCategoryTotalsAsync(int days, Guid? orgId, CancellationToken cancellationToken)
@@ -260,13 +302,4 @@ public sealed class AdminAnalyticsService(HexaTrackDbContext db) : IAdminAnalyti
             .Take(20)
             .ToListAsync(cancellationToken);
     }
-
-    private static decimal PlanMonthlyInr(SubscriptionPlan plan) =>
-        plan switch
-        {
-            SubscriptionPlan.Basic => 299,
-            SubscriptionPlan.Pro => 699,
-            SubscriptionPlan.ProMax => 1499,
-            _ => 0,
-        };
 }

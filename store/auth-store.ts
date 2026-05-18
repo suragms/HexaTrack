@@ -175,6 +175,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
 configureApiClient({
   getAccessToken: () => useAuthStore.getState().accessToken,
-  getWorkspaceId: () => useWorkspaceStore.getState().activeWorkspaceId,
+  getWorkspaceId: () => {
+    const workspaceStore = useWorkspaceStore.getState();
+    if (!workspaceStore.hydrated) {
+      workspaceStore.hydrate();
+    }
+    return useWorkspaceStore.getState().activeWorkspaceId;
+  },
   onUnauthorized: () => useAuthStore.getState().logout(),
 });

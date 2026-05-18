@@ -247,7 +247,9 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IBackupService, BackupService>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminAlertsService, AdminAlertsService>();
 builder.Services.AddScoped<IAdminUsersService, AdminUsersService>();
+builder.Services.AddSingleton<IFeatureFlagChangeNotifier, FeatureFlagChangeNotifier>();
 builder.Services.AddScoped<IAdminFeatureFlagsService, AdminFeatureFlagsService>();
 builder.Services.AddScoped<IAdminGlobalSettingsService, AdminGlobalSettingsService>();
 builder.Services.AddScoped<IAdminWorkspacesService, AdminWorkspacesService>();
@@ -276,25 +278,7 @@ using (var scope = app.Services.CreateScope())
         {
             await context.Database.MigrateAsync();
             
-            // Seed Super Admin if not exists
-            var adminEmail = "admin@track.com";
-            var existingAdmin = await context.Set<User>().FirstOrDefaultAsync(u => u.Email == adminEmail);
-            if (existingAdmin == null)
-            {
-                var newAdmin = new User
-                {
-                    Email = adminEmail,
-                    DisplayName = "System Administrator",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin132!hexA"),
-                    IsSuperAdmin = true,
-                    Mode = HexaTrack.Api.Domain.UserMode.SuperAdmin,
-                    CreatedAt = DateTimeOffset.UtcNow
-                };
-                context.Set<User>().Add(newAdmin);
-                await context.SaveChangesAsync();
-            }
-
-            // Seed default feature flags if not present
+            // Ensure expected platform feature flags exist; values remain editable in Super Admin.
             var defaultFlags = new Dictionary<string, string>
             {
                 ["EnableOrganizations"] = "true",
@@ -307,6 +291,12 @@ using (var scope = app.Services.CreateScope())
                 ["EnablePayroll"] = "false",
                 ["EnableInventory"] = "false",
                 ["EnableAdvancedReports"] = "false",
+                ["EnableNotifications"] = "true",
+                ["EnablePWA"] = "true",
+                ["EnableOfflineMode"] = "true",
+                ["Income"] = "true",
+                ["Expenses"] = "true",
+                ["Reports"] = "true",
             };
 
             foreach (var (key, value) in defaultFlags)
@@ -323,18 +313,6 @@ using (var scope = app.Services.CreateScope())
                             UpdatedAt = DateTimeOffset.UtcNow,
                         });
                 }
-            }
-
-            // Seed default pricing if not present
-            bool hasPricing = await context.Set<HexaTrack.Api.Domain.Entities.PricingConfiguration>().AnyAsync();
-            if (!hasPricing)
-            {
-                context.Set<HexaTrack.Api.Domain.Entities.PricingConfiguration>().AddRange(
-                    new HexaTrack.Api.Domain.Entities.PricingConfiguration { PlanName = "Free", MonthlyPrice = 0, YearlyPrice = 0, Currency = "USD", TrialDays = 0, MaxUsers = 1, MaxBranches = 0, MaxTransactionsPerMonth = 100, IsActive = true },
-                    new HexaTrack.Api.Domain.Entities.PricingConfiguration { PlanName = "Basic", MonthlyPrice = 9.99m, YearlyPrice = 99.99m, Currency = "USD", TrialDays = 14, MaxUsers = 5, MaxBranches = 1, MaxTransactionsPerMonth = 1000, IsActive = true },
-                    new HexaTrack.Api.Domain.Entities.PricingConfiguration { PlanName = "Pro", MonthlyPrice = 29.99m, YearlyPrice = 299.99m, Currency = "USD", TrialDays = 14, MaxUsers = 25, MaxBranches = 5, MaxTransactionsPerMonth = 10000, IsActive = true },
-                    new HexaTrack.Api.Domain.Entities.PricingConfiguration { PlanName = "Enterprise", MonthlyPrice = 99.99m, YearlyPrice = 999.99m, Currency = "USD", TrialDays = 30, MaxUsers = 100, MaxBranches = 50, MaxTransactionsPerMonth = 100000, IsActive = true }
-                );
             }
 
             await context.SaveChangesAsync();

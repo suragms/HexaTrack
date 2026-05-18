@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth-store';
 import {
   LayoutDashboard, Building2, GitBranch, Users, UserCog, CreditCard,
   Layers, Settings, ShieldCheck, BarChart3, Lock, Cpu, ChevronLeft,
-  ChevronRight, LogOut, Menu, X
+  ChevronRight, LogOut, Menu, X, BellRing
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/super-admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/super-admin/permissions', label: 'Permissions', icon: ShieldCheck },
   { href: '/super-admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/super-admin/alerts', label: 'Alerts', icon: BellRing },
   { href: '/super-admin/security', label: 'Security', icon: Lock },
   { href: '/super-admin/settings', label: 'Settings', icon: Settings },
   { href: '/super-admin/system-config', label: 'System Config', icon: Cpu },

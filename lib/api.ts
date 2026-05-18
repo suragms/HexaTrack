@@ -1,16 +1,20 @@
 import type {
   Account,
+  AdminAlert,
   AdminAnalyticsDashboard,
   AdminAnalyticsOverview,
   AdminAuditListResult,
   AdminCreateUserRequest,
+  AdminCreateWorkspaceRequest,
   AdminCreateUserResponse,
   AdminUserListResult,
+  AdminWorkspaceListItem,
   AdminWorkspaceListResult,
   AdminExpenseCategoryAgg,
   AiUsageSummaryResult,
   AuthMeResponse,
   AuthResponse,
+  BranchFeatureToggleDto,
   Category,
   DashboardSummary,
   FeatureFlagDto,
@@ -33,6 +37,7 @@ import type {
   LightOrganization,
   OrganizationFeatureToggleDto,
   UserFeatureToggleDto,
+  WorkspaceFeatureToggleDto,
   LightBranch,
   AdminOrganizationDetailsDto,
   CreateOrganizationRequest,
@@ -57,7 +62,7 @@ import type {
   PricingConfiguration
 } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5014';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5014';
 
 export class ApiError extends Error {
   constructor(
@@ -96,7 +101,7 @@ export function configureApiClient(options: {
   unauthorizedHandler = options.onUnauthorized;
 }
 
-function pathNeedsWorkspaceHeader(path: string): boolean {
+function pathNeedsWorkspaceHeader(path: string, method = 'GET'): boolean {
   const queryIndex = path.indexOf('?');
   const p = queryIndex >= 0 ? path.slice(0, queryIndex) : path;
   if (!p.startsWith('/api/')) return false;
@@ -108,9 +113,12 @@ function pathNeedsWorkspaceHeader(path: string): boolean {
   if (p.startsWith('/api/owner')) return false;
   if (p.startsWith('/api/staff')) return false;
   const normalized = p.replace(/\/$/, '') || '/';
-  if (normalized === '/api/workspaces') return false;
+  const verb = method.toUpperCase();
+  if (normalized === '/api/workspaces' && (verb === 'GET' || verb === 'POST')) return false;
   const singleWorkspace = /^\/api\/workspaces\/([^/]+)$/.exec(normalized);
-  if (singleWorkspace?.[1] && /^[0-9a-fA-F-]{36}$/i.test(singleWorkspace[1])) return false;
+  if (singleWorkspace?.[1] && /^[0-9a-fA-F-]{36}$/i.test(singleWorkspace[1]) && (verb === 'PUT' || verb === 'DELETE')) {
+    return false;
+  }
   return true;
 }
 
@@ -128,7 +136,7 @@ async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T>
   }
 
   const pathOnly = path.startsWith('http') ? (() => { try { return new URL(path).pathname; } catch { return path; } })() : path;
-  if (pathNeedsWorkspaceHeader(pathOnly)) {
+  if (pathNeedsWorkspaceHeader(pathOnly, options.method ?? 'GET')) {
     const ws = workspaceIdProvider?.();
     if (ws) {
       headers.set('X-Workspace-Id', ws);
@@ -213,6 +221,12 @@ function normalizeAdminAnalyticsDashboard(data: AdminAnalyticsDashboard): AdminA
     totalSuspendedOrganizations: data.totalSuspendedOrganizations ?? 0,
     totalIndividualUsers: data.totalIndividualUsers ?? 0,
     totalOrganizationUsers: data.totalOrganizationUsers ?? 0,
+    totalWorkspaces: data.totalWorkspaces ?? (data.cumulativeWorkspacesByDay?.at(-1)?.value ?? 0),
+    activeBranches: data.activeBranches ?? 0,
+    totalTransactions: data.totalTransactions ?? 0,
+    activeSessions: data.activeSessions ?? 0,
+    organizationGrowthByDay: data.organizationGrowthByDay ?? [],
+    workspaceActivityByDay: data.workspaceActivityByDay ?? [],
   };
 }
 
@@ -414,6 +428,16 @@ export const hexaTrackApi = {
       params.set('pageSize', String(pageSize));
       return apiRequest<AdminWorkspaceListResult>(`/api/admin/workspaces?${params.toString()}`);
     },
+    createWorkspace: (payload: AdminCreateWorkspaceRequest) =>
+      apiRequest<AdminWorkspaceListItem>('/api/admin/workspaces', { method: 'POST', body: payload }),
+    repairWorkspaceAccess: (workspaceId: string) =>
+      apiRequest<void>(`/api/admin/workspaces/${workspaceId}/repair-access`, { method: 'POST' }),
+    assignWorkspaceUser: (workspaceId: string, userId: string, role: WorkspaceRoleName) =>
+      apiRequest<void>(`/api/admin/workspaces/${workspaceId}/members`, { method: 'POST', body: { userId, role } }),
+    changeWorkspaceRole: (workspaceId: string, userId: string, role: WorkspaceRoleName) =>
+      apiRequest<void>(`/api/admin/workspaces/${workspaceId}/members/${userId}/role`, { method: 'PUT', body: { role } }),
+    removeWorkspaceUser: (workspaceId: string, userId: string) =>
+      apiRequest<void>(`/api/admin/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
     featureFlags: () => apiRequest<FeatureFlagDto[]>('/api/admin/feature-flags'),
     setFeatureFlag: (key: string, value: string) =>
       apiRequest<void>(`/api/admin/feature-flags/${encodeURIComponent(key)}`, {
@@ -427,6 +451,20 @@ export const hexaTrackApi = {
         method: 'PUT',
         body: { isEnabled },
       }),
+    workspaceFeatureFlags: (workspaceId: string) =>
+      apiRequest<WorkspaceFeatureToggleDto[]>(`/api/admin/feature-flags/workspaces/${workspaceId}`),
+    setWorkspaceFeatureFlag: (workspaceId: string, key: string, isEnabled: boolean) =>
+      apiRequest<void>(`/api/admin/feature-flags/workspaces/${workspaceId}/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        body: { isEnabled },
+      }),
+    branchFeatureFlags: (branchId: string) =>
+      apiRequest<BranchFeatureToggleDto[]>(`/api/admin/feature-flags/branches/${branchId}`),
+    setBranchFeatureFlag: (branchId: string, key: string, isEnabled: boolean) =>
+      apiRequest<void>(`/api/admin/feature-flags/branches/${branchId}/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        body: { isEnabled },
+      }),
     userFeatureFlags: (userId: string) =>
       apiRequest<UserFeatureToggleDto[]>(`/api/admin/feature-flags/users/${userId}`),
     setUserFeatureFlag: (userId: string, key: string, isEnabled: boolean) =>
@@ -434,11 +472,28 @@ export const hexaTrackApi = {
         method: 'PUT',
         body: { isEnabled },
       }),
-    auditLog: (page = 1, pageSize = 50) => {
+    auditLog: (page = 1, pageSize = 50, q?: string, actionKeyword?: string, targetType?: string) => {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
+      if (q?.trim()) params.set('q', q.trim());
+      if (actionKeyword?.trim()) params.set('actionKeyword', actionKeyword.trim());
+      if (targetType?.trim()) params.set('targetType', targetType.trim());
       return apiRequest<AdminAuditListResult>(`/api/admin/audit?${params.toString()}`);
+    },
+    exportAuditLogUrl: (q?: string, actionKeyword?: string, targetType?: string) => {
+      const params = new URLSearchParams();
+      if (q?.trim()) params.set('q', q.trim());
+      if (actionKeyword?.trim()) params.set('actionKeyword', actionKeyword.trim());
+      if (targetType?.trim()) params.set('targetType', targetType.trim());
+      return `/api/admin/audit/export?${params.toString()}`;
+    },
+    alerts: {
+      getActive: () => apiRequest<AdminAlert[]>('/api/admin/alerts'),
+      getHistory: (page = 1, pageSize = 50) =>
+        apiRequest<AdminAlert[]>(`/api/admin/alerts/history?page=${page}&pageSize=${pageSize}`),
+      resolve: (id: string) =>
+        apiRequest<void>(`/api/admin/alerts/${id}/resolve`, { method: 'POST' }),
     },
     aiUsage: (days = 30) =>
       apiRequest<AiUsageSummaryResult>(`/api/admin/ai/usage?days=${days}`),

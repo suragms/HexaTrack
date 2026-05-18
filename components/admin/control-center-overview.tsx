@@ -160,7 +160,7 @@ export function ControlCenterOverview({
       )}
 
       {/* 1. Core KPI Matrix */}
-      <AdminKpiCards stats={mappedKpiStats} loading={showSkeleton} />
+      <AdminKpiCards overview={overview} dashboard={dashboard} loading={showSkeleton} />
 
       {/* 2. Operation Panels */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-stack-lg mt-2">

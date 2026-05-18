@@ -29,6 +29,22 @@ public sealed class AdminFeatureFlagsController(ICurrentUser currentUser, IAdmin
     public Task UpsertOrgToggle(Guid organizationId, string key, [FromBody] UpsertToggleRequest body, CancellationToken cancellationToken)
         => flags.UpsertOrgToggleAsync(organizationId, key, body.IsEnabled, currentUser.UserId, cancellationToken);
 
+    [HttpGet("workspaces/{workspaceId:guid}")]
+    public Task<IReadOnlyList<WorkspaceFeatureToggleDto>> GetWorkspaceToggles(Guid workspaceId, CancellationToken cancellationToken)
+        => flags.GetWorkspaceTogglesAsync(workspaceId, cancellationToken);
+
+    [HttpPut("workspaces/{workspaceId:guid}/{key}")]
+    public Task UpsertWorkspaceToggle(Guid workspaceId, string key, [FromBody] UpsertToggleRequest body, CancellationToken cancellationToken)
+        => flags.UpsertWorkspaceToggleAsync(workspaceId, key, body.IsEnabled, currentUser.UserId, cancellationToken);
+
+    [HttpGet("branches/{branchId:guid}")]
+    public Task<IReadOnlyList<BranchFeatureToggleDto>> GetBranchToggles(Guid branchId, CancellationToken cancellationToken)
+        => flags.GetBranchTogglesAsync(branchId, cancellationToken);
+
+    [HttpPut("branches/{branchId:guid}/{key}")]
+    public Task UpsertBranchToggle(Guid branchId, string key, [FromBody] UpsertToggleRequest body, CancellationToken cancellationToken)
+        => flags.UpsertBranchToggleAsync(branchId, key, body.IsEnabled, currentUser.UserId, cancellationToken);
+
     [HttpGet("users/{userId:guid}")]
     public Task<IReadOnlyList<UserFeatureToggleDto>> GetUserToggles(Guid userId, CancellationToken cancellationToken)
         => flags.GetUserTogglesAsync(userId, cancellationToken);

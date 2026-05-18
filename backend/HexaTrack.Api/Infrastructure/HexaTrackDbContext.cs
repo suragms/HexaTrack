@@ -34,8 +34,11 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<Integration> Integrations => Set<Integration>();
     public DbSet<OrganizationFeatureToggle> OrganizationFeatureToggles => Set<OrganizationFeatureToggle>();
+    public DbSet<WorkspaceFeatureToggle> WorkspaceFeatureToggles => Set<WorkspaceFeatureToggle>();
+    public DbSet<BranchFeatureToggle> BranchFeatureToggles => Set<BranchFeatureToggle>();
     public DbSet<PricingConfiguration> PricingConfigurations => Set<PricingConfiguration>();
     public DbSet<UserFeatureToggle> UserFeatureToggles => Set<UserFeatureToggle>();
+    public DbSet<AdminAlert> AdminAlerts => Set<AdminAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,6 +54,9 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
             entity.Property(x => x.OrganizationRole).HasMaxLength(50);
             entity.Property(x => x.Department).HasMaxLength(100);
             entity.HasIndex(x => x.Mode);
+            entity.HasIndex(x => x.OrganizationId).HasFilter("\"OrganizationId\" IS NOT NULL");
+            entity.HasIndex(x => x.BranchId).HasFilter("\"BranchId\" IS NOT NULL");
+            entity.HasIndex(x => x.CreatedAt);
             
             entity.HasOne(x => x.Organization)
                 .WithMany(x => x.Members)
@@ -78,6 +84,7 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
             entity.HasIndex(x => x.Slug).IsUnique().HasFilter("\"Slug\" IS NOT NULL");
             entity.HasIndex(x => new { x.Plan, x.IsActive });
             entity.HasIndex(x => x.WorkspaceMode);
+            entity.HasIndex(x => x.CreatedAt);
         });
 
         modelBuilder.Entity<Branch>(entity =>
@@ -96,6 +103,10 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
                 .WithMany()
                 .HasForeignKey(x => x.WorkspaceId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(x => x.OrganizationId);
+            entity.HasIndex(x => x.WorkspaceId).HasFilter("\"WorkspaceId\" IS NOT NULL");
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => new { x.OrganizationId, x.IsEnabled });
         });
 
         modelBuilder.Entity<DomainRoute>(entity =>
@@ -120,6 +131,7 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
         modelBuilder.Entity<Workspace>(entity =>
         {
             entity.HasIndex(x => x.OwnerUserId);
+            entity.HasIndex(x => x.CreatedAt);
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.Currency).HasMaxLength(3);
             entity.HasOne(x => x.Owner)
@@ -319,6 +331,8 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
         {
             entity.HasIndex(x => x.CreatedAt);
             entity.HasIndex(x => x.ActorUserId);
+            entity.HasIndex(x => new { x.Action, x.CreatedAt });
+            entity.HasIndex(x => new { x.TargetType, x.CreatedAt });
             entity.Property(x => x.Action).HasMaxLength(120);
             entity.Property(x => x.TargetType).HasMaxLength(80);
             entity.Property(x => x.MetadataJson).HasMaxLength(4000);
@@ -341,6 +355,19 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
             entity.HasKey(x => x.Key);
             entity.Property(x => x.Key).HasMaxLength(120);
             entity.Property(x => x.Value).HasMaxLength(2000);
+        });
+
+        modelBuilder.Entity<AdminAlert>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasMaxLength(50);
+            entity.Property(x => x.Title).HasMaxLength(150);
+            entity.Property(x => x.Message).HasMaxLength(500);
+            entity.Property(x => x.Severity).HasMaxLength(20);
+            entity.Property(x => x.ResolvedBy).HasMaxLength(150);
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.IsResolved);
+            entity.HasIndex(x => new { x.IsResolved, x.Severity, x.CreatedAt });
         });
 
         modelBuilder.Entity<WorkspaceInvite>(entity =>
@@ -401,6 +428,26 @@ public sealed class HexaTrackDbContext(DbContextOptions<HexaTrackDbContext> opti
             entity.HasOne(x => x.Organization)
                 .WithMany(x => x.FeatureToggles)
                 .HasForeignKey(x => x.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkspaceFeatureToggle>(entity =>
+        {
+            entity.HasIndex(x => new { x.WorkspaceId, x.FeatureKey }).IsUnique();
+            entity.Property(x => x.FeatureKey).HasMaxLength(100);
+            entity.HasOne(x => x.Workspace)
+                .WithMany()
+                .HasForeignKey(x => x.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BranchFeatureToggle>(entity =>
+        {
+            entity.HasIndex(x => new { x.BranchId, x.FeatureKey }).IsUnique();
+            entity.Property(x => x.FeatureKey).HasMaxLength(100);
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.BranchId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -21,12 +21,9 @@ public interface ITransactionService
 
 public sealed class TransactionService(
     HexaTrackDbContext db,
-    IUserScopedRepository<DomainTransaction> transactions,
-    IUserScopedRepository<Account> accounts,
-    IUserScopedRepository<Category> categories,
-    IUserScopedRepository<Tag> tags,
     ICurrentUser currentUser,
     ICurrentWorkspace currentWorkspace,
+    IAdminAuditService audit,
     IUnitOfWork unitOfWork) : ITransactionService
 {
     public async Task<IReadOnlyCollection<TransactionDto>> ListAsync(DateOnly? from, DateOnly? to, CancellationToken cancellationToken)
@@ -47,7 +44,7 @@ public sealed class TransactionService(
             throw new InvalidOperationException("Date range cannot exceed 92 days for list endpoint.");
         }
 
-        IQueryable<DomainTransaction> query = transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+        IQueryable<DomainTransaction> query = db.Transactions.AsNoTracking().InWorkspace(currentWorkspace.WorkspaceId)
             .Include(x => x.TransactionTags).ThenInclude(x => x.Tag)
             .OrderByDescending(x => x.OccurredOn).ThenByDescending(x => x.CreatedAt);
 
@@ -71,7 +68,7 @@ public sealed class TransactionService(
     {
         int page = Math.Max(request.Page, 1);
         int pageSize = Math.Clamp(request.PageSize, 1, 100);
-        IQueryable<DomainTransaction> query = transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+        IQueryable<DomainTransaction> query = db.Transactions.AsNoTracking().InWorkspace(currentWorkspace.WorkspaceId)
             .Include(x => x.Account)
             .Include(x => x.Category)
             .Include(x => x.TransactionTags).ThenInclude(x => x.Tag);
@@ -155,14 +152,14 @@ public sealed class TransactionService(
             Account? account = null;
             if (request.AccountId != Guid.Empty)
             {
-                account = await accounts.ForUser(currentUser.UserId)
+                account = await db.Accounts
                     .InWorkspace(currentWorkspace.WorkspaceId)
                     .SingleOrDefaultAsync(x => x.Id == request.AccountId && !x.IsArchived, ct);
             }
 
             if (account is null)
             {
-                account = await accounts.ForUser(currentUser.UserId)
+                account = await db.Accounts
                     .InWorkspace(currentWorkspace.WorkspaceId)
                     .FirstOrDefaultAsync(x => !x.IsArchived, ct);
 
@@ -190,7 +187,7 @@ public sealed class TransactionService(
             string? idempotencyKey = string.IsNullOrWhiteSpace(request.IdempotencyKey) ? null : request.IdempotencyKey.Trim();
             if (idempotencyKey is not null)
             {
-                DomainTransaction? existing = await transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                DomainTransaction? existing = await db.Transactions.InWorkspace(currentWorkspace.WorkspaceId)
                     .Include(x => x.TransactionTags).ThenInclude(x => x.Tag)
                     .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, ct);
 
@@ -201,7 +198,7 @@ public sealed class TransactionService(
             }
 
             // Use repository so multi-tenant scoping and access rules are strictly applied
-            Category? categoryRow = await categories.ForUser(currentUser.UserId)
+            Category? categoryRow = await db.Categories
                 .InWorkspace(currentWorkspace.WorkspaceId)
                 .SingleOrDefaultAsync(x => x.Id == request.CategoryId && x.Type == request.Type && !x.IsArchived, ct);
             if (categoryRow is null)
@@ -209,7 +206,7 @@ public sealed class TransactionService(
                 throw new InvalidOperationException("Category is invalid for this transaction type.");
             }
 
-            bool categoryHasSubcategories = await categories.ForUser(currentUser.UserId)
+            bool categoryHasSubcategories = await db.Categories
                 .InWorkspace(currentWorkspace.WorkspaceId)
                 .AnyAsync(x => x.ParentCategoryId == request.CategoryId && !x.IsArchived, ct);
             if (categoryHasSubcategories)
@@ -238,7 +235,7 @@ public sealed class TransactionService(
 
             if (request.TagIds is { Count: > 0 })
             {
-                List<Guid> validTagIds = await tags.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                List<Guid> validTagIds = await db.Tags.InWorkspace(currentWorkspace.WorkspaceId)
                     .Where(x => request.TagIds.Contains(x.Id))
                     .Select(x => x.Id)
                     .ToListAsync(ct);
@@ -248,7 +245,8 @@ public sealed class TransactionService(
                     .ToList();
             }
 
-            await transactions.AddAsync(transaction, ct);
+            await db.Transactions.AddAsync(transaction, ct);
+            await audit.LogAsync(currentUser.UserId, "transaction.create", "Transaction", transaction.Id, null, ct);
 
             return new TransactionDto(transaction.Id, transaction.AccountId, transaction.CategoryId, transaction.Type, transaction.Amount, transaction.Currency, transaction.Merchant, transaction.Note, transaction.OccurredOn, []);
         }, cancellationToken);
@@ -256,7 +254,7 @@ public sealed class TransactionService(
     public Task<TransactionDto> UpdateAsync(Guid transactionId, UpdateTransactionRequest request, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            DomainTransaction transaction = await transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            DomainTransaction transaction = await db.Transactions.InWorkspace(currentWorkspace.WorkspaceId)
                 .Include(x => x.TransactionTags).ThenInclude(x => x.Tag)
                 .SingleOrDefaultAsync(x => x.Id == transactionId, ct)
                 ?? throw new KeyNotFoundException("Transaction not found.");
@@ -270,14 +268,14 @@ public sealed class TransactionService(
             Guid newCategoryId = request.CategoryId ?? transaction.CategoryId;
             if (newCategoryId != transaction.CategoryId)
             {
-                Category? categoryRow = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                Category? categoryRow = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                     .SingleOrDefaultAsync(x => x.Id == newCategoryId && x.Type == transaction.Type && !x.IsArchived, ct);
                 if (categoryRow is null)
                 {
                     throw new InvalidOperationException("Category is invalid for this transaction type.");
                 }
 
-                bool categoryHasSubcategories = await categories.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                bool categoryHasSubcategories = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
                     .AnyAsync(x => x.ParentCategoryId == newCategoryId && !x.IsArchived, ct);
                 if (categoryHasSubcategories)
                 {
@@ -290,7 +288,7 @@ public sealed class TransactionService(
             decimal delta = newEffect - oldEffect;
             if (delta != 0)
             {
-                int updated = await accounts.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                int updated = await db.Accounts.InWorkspace(currentWorkspace.WorkspaceId)
                     .Where(a => a.Id == transaction.AccountId)
                     .ExecuteUpdateAsync(s => s.SetProperty(a => a.Balance, a => a.Balance + delta), ct);
                 if (updated == 0)
@@ -311,7 +309,7 @@ public sealed class TransactionService(
                     .Where(tt => tt.TransactionId == transaction.Id)
                     .ExecuteDeleteAsync(ct);
 
-                List<Guid> validTagIds = await tags.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                List<Guid> validTagIds = await db.Tags.InWorkspace(currentWorkspace.WorkspaceId)
                     .Where(x => request.TagIds.Contains(x.Id))
                     .Select(x => x.Id)
                     .ToListAsync(ct);
@@ -321,20 +319,21 @@ public sealed class TransactionService(
                     .ToList();
             }
 
+            await audit.LogAsync(currentUser.UserId, "transaction.update", "Transaction", transaction.Id, null, ct);
             return ToDto(transaction);
         }, cancellationToken);
 
     public Task DeleteAsync(Guid transactionId, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            DomainTransaction transaction = await transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            DomainTransaction transaction = await db.Transactions.InWorkspace(currentWorkspace.WorkspaceId)
                 .SingleOrDefaultAsync(x => x.Id == transactionId, ct)
                 ?? throw new KeyNotFoundException("Transaction not found.");
 
             decimal reversal = -BalanceEffect(transaction.Type, transaction.Amount);
             if (reversal != 0)
             {
-                int updated = await accounts.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                int updated = await db.Accounts.InWorkspace(currentWorkspace.WorkspaceId)
                     .Where(a => a.Id == transaction.AccountId)
                     .ExecuteUpdateAsync(s => s.SetProperty(a => a.Balance, a => a.Balance + reversal), ct);
                 if (updated == 0)
@@ -344,6 +343,7 @@ public sealed class TransactionService(
             }
 
             transaction.DeletedAt = DateTimeOffset.UtcNow;
+            await audit.LogAsync(currentUser.UserId, "transaction.delete", "Transaction", transaction.Id, null, ct);
         }, cancellationToken);
 
     public Task BulkDeleteAsync(BulkDeleteTransactionsRequest request, CancellationToken cancellationToken)
@@ -355,7 +355,7 @@ public sealed class TransactionService(
             }
 
             Guid[] ids = request.TransactionIds.Distinct().ToArray();
-            List<DomainTransaction> rows = await transactions.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+            List<DomainTransaction> rows = await db.Transactions.InWorkspace(currentWorkspace.WorkspaceId)
                 .Where(t => ids.Contains(t.Id))
                 .ToListAsync(ct);
 
@@ -369,7 +369,7 @@ public sealed class TransactionService(
                 decimal reversal = -BalanceEffect(transaction.Type, transaction.Amount);
                 if (reversal != 0)
                 {
-                    await accounts.ForUser(currentUser.UserId).InWorkspace(currentWorkspace.WorkspaceId)
+                    await db.Accounts.InWorkspace(currentWorkspace.WorkspaceId)
                         .Where(a => a.Id == transaction.AccountId)
                         .ExecuteUpdateAsync(s => s.SetProperty(a => a.Balance, a => a.Balance + reversal), ct);
                 }

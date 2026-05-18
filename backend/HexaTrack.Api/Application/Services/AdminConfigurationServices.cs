@@ -12,12 +12,16 @@ public interface IAdminFeatureFlagsService
     Task UpsertAsync(string key, string value, Guid actorUserId, CancellationToken cancellationToken);
     Task<IReadOnlyList<OrganizationFeatureToggleDto>> GetOrgTogglesAsync(Guid organizationId, CancellationToken cancellationToken);
     Task UpsertOrgToggleAsync(Guid organizationId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<WorkspaceFeatureToggleDto>> GetWorkspaceTogglesAsync(Guid workspaceId, CancellationToken cancellationToken);
+    Task UpsertWorkspaceToggleAsync(Guid workspaceId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BranchFeatureToggleDto>> GetBranchTogglesAsync(Guid branchId, CancellationToken cancellationToken);
+    Task UpsertBranchToggleAsync(Guid branchId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken);
     Task<IReadOnlyList<UserFeatureToggleDto>> GetUserTogglesAsync(Guid userId, CancellationToken cancellationToken);
     Task UpsertUserToggleAsync(Guid userId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken);
-    Task<Dictionary<string, bool>> GetEffectiveFlagsAsync(Guid userId, Guid? organizationId, CancellationToken cancellationToken);
+    Task<Dictionary<string, bool>> GetEffectiveFlagsAsync(Guid userId, Guid? organizationId, Guid? workspaceId, Guid? branchId, CancellationToken cancellationToken);
 }
 
-public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditService audit) : IAdminFeatureFlagsService
+public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditService audit, IFeatureFlagChangeNotifier notifier) : IAdminFeatureFlagsService
 {
     public async Task<IReadOnlyList<FeatureFlagDto>> ListAsync(CancellationToken cancellationToken)
     {
@@ -29,11 +33,8 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
 
     public async Task UpsertAsync(string key, string value, Guid actorUserId, CancellationToken cancellationToken)
     {
-        key = key.Trim();
-        if (key.Length == 0 || key.Length > 120)
-        {
-            throw new InvalidOperationException("Invalid flag key.");
-        }
+        key = NormalizeFeatureKey(key);
+        value = NormalizeFeatureValue(value);
 
         GlobalFeatureFlag? row = await db.GlobalFeatureFlags.SingleOrDefaultAsync(x => x.Key == key, cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -49,7 +50,8 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
 
         await db.SaveChangesAsync(cancellationToken);
         await audit.LogAsync(actorUserId, "featureflag.update", "GlobalFeatureFlag", null,
-            JsonSerializer.Serialize(new { key }), cancellationToken);
+            JsonSerializer.Serialize(new { key, value }), cancellationToken);
+        await notifier.PublishAsync(new FeatureFlagChangeEvent("Global", key, null, bool.Parse(value), value, now), cancellationToken);
     }
 
     public async Task<IReadOnlyList<OrganizationFeatureToggleDto>> GetOrgTogglesAsync(Guid organizationId, CancellationToken cancellationToken)
@@ -63,7 +65,13 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
 
     public async Task UpsertOrgToggleAsync(Guid organizationId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken)
     {
-        key = key.Trim();
+        key = NormalizeFeatureKey(key);
+        bool exists = await db.Organizations.AnyAsync(x => x.Id == organizationId, cancellationToken);
+        if (!exists)
+        {
+            throw new KeyNotFoundException("Organization not found.");
+        }
+
         OrganizationFeatureToggle? row = await db.OrganizationFeatureToggles
             .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.FeatureKey == key, cancellationToken);
         
@@ -87,6 +95,7 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
         await db.SaveChangesAsync(cancellationToken);
         await audit.LogAsync(actorUserId, "featureflag.org_update", "OrganizationFeatureToggle", organizationId,
             JsonSerializer.Serialize(new { key, isEnabled }), cancellationToken);
+        await notifier.PublishAsync(new FeatureFlagChangeEvent("Organization", key, organizationId, isEnabled, null, now), cancellationToken);
     }
 
     public async Task<IReadOnlyList<UserFeatureToggleDto>> GetUserTogglesAsync(Guid userId, CancellationToken cancellationToken)
@@ -98,6 +107,82 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<WorkspaceFeatureToggleDto>> GetWorkspaceTogglesAsync(Guid workspaceId, CancellationToken cancellationToken)
+    {
+        return await db.WorkspaceFeatureToggles.AsNoTracking()
+            .Where(x => x.WorkspaceId == workspaceId)
+            .OrderBy(x => x.FeatureKey)
+            .Select(x => new WorkspaceFeatureToggleDto(x.Id, x.WorkspaceId, x.FeatureKey, x.IsEnabled, x.UpdatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpsertWorkspaceToggleAsync(Guid workspaceId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        key = NormalizeFeatureKey(key);
+        bool exists = await db.Workspaces.AnyAsync(x => x.Id == workspaceId, cancellationToken);
+        if (!exists)
+        {
+            throw new KeyNotFoundException("Workspace not found.");
+        }
+
+        WorkspaceFeatureToggle? row = await db.WorkspaceFeatureToggles
+            .SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId && x.FeatureKey == key, cancellationToken);
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (row is null)
+        {
+            db.WorkspaceFeatureToggles.Add(new WorkspaceFeatureToggle { WorkspaceId = workspaceId, FeatureKey = key, IsEnabled = isEnabled, UpdatedAt = now });
+        }
+        else
+        {
+            row.IsEnabled = isEnabled;
+            row.UpdatedAt = now;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.LogAsync(actorUserId, "featureflag.workspace_update", "WorkspaceFeatureToggle", workspaceId,
+            JsonSerializer.Serialize(new { key, isEnabled }), cancellationToken);
+        await notifier.PublishAsync(new FeatureFlagChangeEvent("Workspace", key, workspaceId, isEnabled, null, now), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BranchFeatureToggleDto>> GetBranchTogglesAsync(Guid branchId, CancellationToken cancellationToken)
+    {
+        return await db.BranchFeatureToggles.AsNoTracking()
+            .Where(x => x.BranchId == branchId)
+            .OrderBy(x => x.FeatureKey)
+            .Select(x => new BranchFeatureToggleDto(x.Id, x.BranchId, x.FeatureKey, x.IsEnabled, x.UpdatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpsertBranchToggleAsync(Guid branchId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        key = NormalizeFeatureKey(key);
+        bool exists = await db.Branches.AnyAsync(x => x.Id == branchId, cancellationToken);
+        if (!exists)
+        {
+            throw new KeyNotFoundException("Branch not found.");
+        }
+
+        BranchFeatureToggle? row = await db.BranchFeatureToggles
+            .SingleOrDefaultAsync(x => x.BranchId == branchId && x.FeatureKey == key, cancellationToken);
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (row is null)
+        {
+            db.BranchFeatureToggles.Add(new BranchFeatureToggle { BranchId = branchId, FeatureKey = key, IsEnabled = isEnabled, UpdatedAt = now });
+        }
+        else
+        {
+            row.IsEnabled = isEnabled;
+            row.UpdatedAt = now;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.LogAsync(actorUserId, "featureflag.branch_update", "BranchFeatureToggle", branchId,
+            JsonSerializer.Serialize(new { key, isEnabled }), cancellationToken);
+        await notifier.PublishAsync(new FeatureFlagChangeEvent("Branch", key, branchId, isEnabled, null, now), cancellationToken);
+    }
+
     public async Task UpdateUserTogglesFromPermissionsAsync(Guid userId, long permissionOverrides, CancellationToken cancellationToken)
     {
         // PermissionOverrides is handled in standard auth
@@ -105,7 +190,13 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
 
     public async Task UpsertUserToggleAsync(Guid userId, string key, bool isEnabled, Guid actorUserId, CancellationToken cancellationToken)
     {
-        key = key.Trim();
+        key = NormalizeFeatureKey(key);
+        bool exists = await db.Users.AnyAsync(x => x.Id == userId, cancellationToken);
+        if (!exists)
+        {
+            throw new KeyNotFoundException("User not found.");
+        }
+
         UserFeatureToggle? row = await db.UserFeatureToggles
             .SingleOrDefaultAsync(x => x.UserId == userId && x.FeatureKey == key, cancellationToken);
         
@@ -129,9 +220,10 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
         await db.SaveChangesAsync(cancellationToken);
         await audit.LogAsync(actorUserId, "featureflag.user_update", "UserFeatureToggle", userId,
             JsonSerializer.Serialize(new { key, isEnabled }), cancellationToken);
+        await notifier.PublishAsync(new FeatureFlagChangeEvent("User", key, userId, isEnabled, null, now), cancellationToken);
     }
 
-    public async Task<Dictionary<string, bool>> GetEffectiveFlagsAsync(Guid userId, Guid? organizationId, CancellationToken cancellationToken)
+    public async Task<Dictionary<string, bool>> GetEffectiveFlagsAsync(Guid userId, Guid? organizationId, Guid? workspaceId, Guid? branchId, CancellationToken cancellationToken)
     {
         var effective = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
@@ -154,6 +246,28 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
             }
         }
 
+        if (workspaceId.HasValue)
+        {
+            var workspaces = await db.WorkspaceFeatureToggles.AsNoTracking()
+                .Where(x => x.WorkspaceId == workspaceId.Value)
+                .ToListAsync(cancellationToken);
+            foreach (var workspace in workspaces)
+            {
+                effective[workspace.FeatureKey] = workspace.IsEnabled;
+            }
+        }
+
+        if (branchId.HasValue)
+        {
+            var branches = await db.BranchFeatureToggles.AsNoTracking()
+                .Where(x => x.BranchId == branchId.Value)
+                .ToListAsync(cancellationToken);
+            foreach (var branch in branches)
+            {
+                effective[branch.FeatureKey] = branch.IsEnabled;
+            }
+        }
+
         // 3. Load user overrides if any
         var users = await db.UserFeatureToggles.AsNoTracking()
             .Where(x => x.UserId == userId)
@@ -164,6 +278,32 @@ public sealed class AdminFeatureFlagsService(HexaTrackDbContext db, IAdminAuditS
         }
 
         return effective;
+    }
+
+    private static string NormalizeFeatureKey(string key)
+    {
+        key = key.Trim();
+        if (key.Length == 0 || key.Length > 120)
+        {
+            throw new InvalidOperationException("Invalid flag key.");
+        }
+
+        if (key.Any(char.IsWhiteSpace))
+        {
+            throw new InvalidOperationException("Feature flag keys cannot contain whitespace.");
+        }
+
+        return key;
+    }
+
+    private static string NormalizeFeatureValue(string value)
+    {
+        if (!bool.TryParse(value.Trim(), out bool enabled))
+        {
+            throw new InvalidOperationException("Feature flag value must be true or false.");
+        }
+
+        return enabled ? "true" : "false";
     }
 }
 
