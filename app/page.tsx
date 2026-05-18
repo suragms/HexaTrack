@@ -174,7 +174,7 @@ export default function Home() {
     <AppShell 
       activeScreen={screen} 
       onAddTransaction={() => {
-        window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }));
+        window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }));
       }} 
       onNavigate={setScreen} 
       transactionCount={transactions.length}

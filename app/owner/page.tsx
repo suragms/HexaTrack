@@ -322,7 +322,7 @@ export default function OwnerDashboard() {
               <motion.button
                 whileTap={{ scale: 0.90 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }))}
+                onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }))}
                 disabled={!activeWorkspaceId}
                 className="relative z-10 flex items-center justify-center rounded-full overflow-hidden disabled:opacity-50"
                 style={{
