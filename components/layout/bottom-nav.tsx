@@ -13,7 +13,7 @@ type BottomNavProps = {
 export function BottomNav({ activeScreen, onAddTransaction, onNavigate }: BottomNavProps) {
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50"
+      className="fixed inset-x-0 bottom-0 z-[9000] pointer-events-auto"
       style={{
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(20px)',
@@ -31,7 +31,7 @@ export function BottomNav({ activeScreen, onAddTransaction, onNavigate }: Bottom
         <NavItem active={activeScreen === 'reports'} icon={BarChart3} label="Reports" onClick={() => onNavigate('reports')} />
 
         {/* ── CENTER FAB ── */}
-        <div className="relative flex items-center justify-center" style={{ height: 78 }}>
+        <div className="relative flex items-center justify-center" style={{ height: 78, pointerEvents: 'none' }}>
           {/* Enhanced Soft Glow */}
           <div
             className="absolute rounded-full pointer-events-none"
@@ -49,11 +49,13 @@ export function BottomNav({ activeScreen, onAddTransaction, onNavigate }: Bottom
             transition={{ type: 'spring', stiffness: 600, damping: 25 }}
             onClick={onAddTransaction}
             type="button"
-            className="relative z-10 flex items-center justify-center rounded-full overflow-hidden group"
+            className="fixed left-1/2 z-[9999] flex -translate-x-1/2 items-center justify-center rounded-full overflow-hidden group pointer-events-auto"
             style={{
-              width: 68, height: 68, marginBottom: 16,
-              background: 'linear-gradient(145deg, #00BFA6 0%, #0F9D8A 55%, #0B6B61 100%)',
-              boxShadow: '0 14px 34px rgba(15,157,138,0.42), inset 0 2px 4px rgba(255,255,255,0.22)',
+              width: 72,
+              height: 72,
+              bottom: 'calc(28px + env(safe-area-inset-bottom))',
+              background: 'linear-gradient(135deg, #0F9D8A 0%, #00BFA6 100%)',
+              boxShadow: '0 10px 30px rgba(15,157,138,0.35), inset 0 2px 4px rgba(255,255,255,0.22)',
               border: '1.5px solid rgba(255,255,255,0.2)',
             }}
           >

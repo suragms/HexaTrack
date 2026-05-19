@@ -231,7 +231,16 @@ export default function OwnerDashboard() {
       </div>
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
-      <div className="fintech-clean md:hidden flex flex-col bg-[#F5F7F8] text-[#102A43] font-sans" style={{ height: '100dvh' }}>
+      <div
+        className="fintech-clean mx-auto md:hidden flex w-full max-w-[430px] flex-col bg-[#F5F7F8] text-[#102A43] font-sans"
+        style={{
+          minHeight: '100dvh',
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          position: 'relative',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
 
         {/* Mobile Header — compact 72px */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
@@ -264,7 +273,7 @@ export default function OwnerDashboard() {
             paddingLeft: 16,
             paddingRight: 16,
             paddingTop: 16,
-            paddingBottom: 'calc(82px + env(safe-area-inset-bottom) + 24px)',
+            paddingBottom: 'calc(110px + env(safe-area-inset-bottom))',
             WebkitOverflowScrolling: 'touch',
           }}
         >
@@ -292,7 +301,7 @@ export default function OwnerDashboard() {
 
         {/* ─── FIXED BOTTOM NAVIGATION ─── */}
         <div
-          className="fixed inset-x-0 bottom-0 z-50"
+          className="fixed inset-x-0 bottom-0 z-[9000] pointer-events-auto"
           style={{
             background: 'rgba(5,8,22,0.92)',
             backdropFilter: 'blur(20px)',
@@ -317,20 +326,20 @@ export default function OwnerDashboard() {
               onClick={() => setActiveTab('reports')}
             />
             {/* Center FAB */}
-            <div className="relative flex items-center justify-center" style={{ height: 82 }}>
+            <div className="relative flex items-center justify-center" style={{ height: 82, pointerEvents: 'none' }}>
               <div className="absolute rounded-full pointer-events-none" style={{ width: 68, height: 68, background: 'rgba(16,185,129,0.25)', filter: 'blur(14px)', top: '50%', left: '50%', transform: 'translate(-50%, -54%)' }} />
               <motion.button
                 whileTap={{ scale: 0.90 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }))}
                 disabled={!activeWorkspaceId}
-                className="relative z-10 flex items-center justify-center rounded-full overflow-hidden disabled:opacity-50"
+                className="fixed left-1/2 z-[9999] flex -translate-x-1/2 items-center justify-center rounded-full overflow-hidden disabled:opacity-50 pointer-events-auto"
                 style={{
-                  width: 68,
-                  height: 68,
-                  marginBottom: 10,
-                  background: 'linear-gradient(145deg, #34D399 0%, #10B981 50%, #059669 100%)',
-                  boxShadow: '0 8px 24px rgba(16,185,129,0.45), 0 2px 8px rgba(0,0,0,0.4)',
+                  width: 72,
+                  height: 72,
+                  bottom: 'calc(28px + env(safe-area-inset-bottom))',
+                  background: 'linear-gradient(135deg, #0F9D8A 0%, #00BFA6 100%)',
+                  boxShadow: '0 10px 30px rgba(15,157,138,0.35), 0 2px 8px rgba(0,0,0,0.25)',
                   border: '1.5px solid rgba(255,255,255,0.12)',
                 }}
               >

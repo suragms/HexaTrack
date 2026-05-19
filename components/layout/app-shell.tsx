@@ -84,11 +84,20 @@ export function AppShell({ activeScreen, children, onAddTransaction, onNavigate 
         </main>
       </div>
 
-      <div className="flex flex-col bg-[#F5F7F8] text-[#102A43] md:hidden" style={{ height: '100dvh' }}>
+      <div
+        className="mx-auto flex w-full max-w-[430px] flex-col bg-[#F5F7F8] text-[#102A43] md:hidden"
+        style={{
+          minHeight: '100dvh',
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          position: 'relative',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
         <main
           className="flex-1 overflow-y-auto overflow-x-hidden"
           style={{
-            paddingBottom: 'calc(78px + env(safe-area-inset-bottom) + 24px)',
+            paddingBottom: 'calc(110px + env(safe-area-inset-bottom))',
             WebkitOverflowScrolling: 'touch',
           }}
         >

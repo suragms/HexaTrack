@@ -42,13 +42,13 @@ export function BottomSheet({ open, onClose, children, labelledBy, fullHeight = 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             onClick={onClose}
-            className="fixed inset-0 z-[99] bg-[#102A43]/35 backdrop-blur-[12px]"
+            className="sheet-backdrop fixed inset-0 z-[9999] bg-[#102A43]/35 backdrop-blur-[12px]"
             aria-hidden="true"
           />
 
           {/* Panel Container */}
           <div 
-            className="fixed inset-0 z-[100] flex items-end justify-center overflow-hidden pointer-events-none pt-8 sm:items-center sm:pt-0"
+            className="fixed inset-x-0 bottom-0 z-[10000] flex items-end justify-center overflow-x-hidden overflow-y-visible pointer-events-none pt-8 sm:inset-0 sm:items-center sm:pt-0"
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelledBy}
@@ -67,7 +67,7 @@ export function BottomSheet({ open, onClose, children, labelledBy, fullHeight = 
                 stiffness: 380,
                 mass: 0.6 
               }}
-              className={`pointer-events-auto relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[32px] border border-[#E5E7EB] shadow-[0_-18px_55px_rgba(16,42,67,0.16)] sm:rounded-[32px] ${
+              className={`pointer-events-auto relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-[#E5E7EB] shadow-[0_-18px_55px_rgba(16,42,67,0.16)] sm:rounded-[32px] ${
                 fullHeight ? 'h-[96dvh]' : 'h-auto max-h-[92dvh]'
               }`}
               style={{ 
