@@ -122,7 +122,7 @@ function OwnerFinanceShell({ kind }: { kind: FinanceKind }) {
   return (
     <>
       {/* ─── DESKTOP LAYOUT (xl+) ─── */}
-      <div className="hidden xl:block min-h-screen bg-[#050816] text-[#E1E2EC]">
+      <div className="hidden md:block min-h-screen bg-[#050816] text-[#E1E2EC]">
         <header className="sticky top-0 z-40 border-b border-white/[0.05] bg-[#050816]/85 px-4 py-4 backdrop-blur-xl">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
@@ -152,8 +152,8 @@ function OwnerFinanceShell({ kind }: { kind: FinanceKind }) {
         </main>
       </div>
 
-      {/* ─── MOBILE LAYOUT (below xl) ─── */}
-      <div className="xl:hidden flex flex-col bg-[#050816] text-[#E1E2EC] font-sans" style={{ height: '100dvh' }}>
+      {/* ─── MOBILE LAYOUT (below md) ─── */}
+      <div className="md:hidden flex flex-col bg-[#050816] text-[#E1E2EC] font-sans" style={{ height: '100dvh' }}>
         {/* Mobile Header */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
           <div className="flex items-center gap-3 min-w-0">

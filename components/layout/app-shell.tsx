@@ -31,8 +31,8 @@ export function AppShell({ activeScreen, children, onAddTransaction, onNavigate,
 
   return (
     <>
-      {/* ─── DESKTOP LAYOUT (lg+): sidebar + full-height main ─── */}
-      <div className="hidden lg:flex min-h-screen w-full max-w-[1440px] mx-auto bg-background relative font-sans">
+      {/* ─── DESKTOP LAYOUT (md+): sidebar + full-height main ─── */}
+      <div className="hidden md:flex min-h-screen w-full max-w-[1440px] mx-auto bg-background relative font-sans">
         {/* Desktop glows */}
         <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-primary/10 blur-[140px] opacity-40 rounded-full -translate-x-1/3 -translate-y-1/3 pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-secondary/5 blur-[120px] opacity-20 rounded-full pointer-events-none" />
@@ -113,8 +113,8 @@ export function AppShell({ activeScreen, children, onAddTransaction, onNavigate,
 
       </div>
 
-      {/* ─── MOBILE LAYOUT (below lg): fixed shell with scroll area ─── */}
-      <div className="lg:hidden flex flex-col bg-background" style={{ height: '100dvh' }}>
+      {/* ─── MOBILE LAYOUT (below md): fixed shell with scroll area ─── */}
+      <div className="md:hidden flex flex-col bg-background" style={{ height: '100dvh' }}>
 
         {/* SCROLLABLE CONTENT AREA — fills all space between top safe-area and bottom nav */}
         <main

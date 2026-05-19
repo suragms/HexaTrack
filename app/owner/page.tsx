@@ -122,8 +122,8 @@ export default function OwnerDashboard() {
     <>
       {/* Dynamic Shared Components */}
 
-      {/* ─── DESKTOP LAYOUT (xl+) ─── */}
-      <div className="hidden xl:flex min-h-screen bg-[#0B1015] text-white font-sans selection:bg-[#4F8CFF]/30">
+      {/* ─── DESKTOP LAYOUT (md+) ─── */}
+      <div className="hidden md:flex min-h-screen bg-[#0B1015] text-white font-sans selection:bg-[#4F8CFF]/30">
         {/* Desktop Sidebar */}
         <aside className="w-[280px] border-r border-white/[0.05] bg-[#0B1015] flex flex-col sticky top-0 h-screen">
           <div className="h-20 flex items-center px-7 border-b border-white/[0.04]">
@@ -230,8 +230,8 @@ export default function OwnerDashboard() {
         </main>
       </div>
 
-      {/* ─── MOBILE LAYOUT (below xl) ─── */}
-      <div className="xl:hidden flex flex-col bg-[#050816] text-white font-sans" style={{ height: '100dvh' }}>
+      {/* ─── MOBILE LAYOUT (below md) ─── */}
+      <div className="md:hidden flex flex-col bg-[#050816] text-white font-sans" style={{ height: '100dvh' }}>
 
         {/* Mobile Header — compact 72px */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>

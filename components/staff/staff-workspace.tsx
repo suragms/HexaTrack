@@ -97,7 +97,7 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
   return (
     <>
       {/* ─── DESKTOP LAYOUT (xl+) ─── */}
-      <div className="hidden xl:flex min-h-screen bg-[#0B1020] text-on-surface font-sans selection:bg-cyan/30">
+      <div className="hidden md:flex min-h-screen bg-[#0B1020] text-on-surface font-sans selection:bg-cyan/30">
         <StaffSidebar active={view} onNavigate={(href) => router.push(href)} onLogout={handleLogout} />
         <main className="min-w-0 flex-1 overflow-y-auto">
           <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#0B1020]/80 px-8 py-4.5 backdrop-blur-xl">
@@ -119,8 +119,8 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
         </main>
       </div>
 
-      {/* ─── MOBILE LAYOUT (below xl) ─── */}
-      <div className="xl:hidden flex flex-col bg-[#050816] text-on-surface font-sans" style={{ height: '100dvh' }}>
+      {/* ─── MOBILE LAYOUT (below md) ─── */}
+      <div className="md:hidden flex flex-col bg-[#050816] text-on-surface font-sans" style={{ height: '100dvh' }}>
         {/* Compact Mobile Header */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
           <div className="flex items-center gap-3 min-w-0">

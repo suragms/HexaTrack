@@ -94,19 +94,6 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
     public Task<AdminCreateUserResponse> CreateAsync(AdminCreateUserRequest request, Guid actorUserId, CancellationToken cancellationToken)
         => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            ValidateAdminCreateRequest(request);
-            string email = request.Email.Trim().ToLowerInvariant();
-
-            if (await db.Users.AnyAsync(x => x.Email == email, ct))
-            {
-                throw new InvalidOperationException("Email is already registered.");
-            }
-
-            string workspaceName = request.WorkspaceName.Trim();
-            string fullName = (request.FullName ?? request.WorkspaceName).Trim();
-            string currency = request.Currency.Trim().ToUpperInvariant();
-            string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
             // Derive UserMode from request properties
             HexaTrack.Api.Domain.UserMode mode;
             if (request.IsSuperAdmin)
@@ -120,22 +107,44 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
             else
                 mode = HexaTrack.Api.Domain.UserMode.Individual;
 
+            string fullName = (request.FullName ?? "Individual User").Trim();
+            string workspaceName = request.WorkspaceName?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(workspaceName))
+            {
+                workspaceName = mode == HexaTrack.Api.Domain.UserMode.Individual
+                    ? $"{fullName} Personal Workspace"
+                    : $"{fullName}'s Ledger";
+            }
+
+            var validatedRequest = request with { WorkspaceName = workspaceName, FullName = fullName };
+            ValidateAdminCreateRequest(validatedRequest);
+
+            string email = validatedRequest.Email.Trim().ToLowerInvariant();
+
+            if (await db.Users.AnyAsync(x => x.Email == email, ct))
+            {
+                throw new InvalidOperationException("Email is already registered.");
+            }
+
+            string currency = validatedRequest.Currency.Trim().ToUpperInvariant();
+            string passwordHash = BCrypt.Net.BCrypt.HashPassword(validatedRequest.Password);
+
             var user = new User
             {
                 Email = email,
                 DisplayName = fullName,
                 PasswordHash = passwordHash,
-                IsSuperAdmin = request.IsSuperAdmin,
+                IsSuperAdmin = validatedRequest.IsSuperAdmin,
                 Mode = mode,
-                OrganizationId = request.OrganizationId,
-                BranchId = request.BranchId,
-                OrganizationRole = request.OrganizationRole,
-                Department = request.Department,
+                OrganizationId = mode == HexaTrack.Api.Domain.UserMode.Individual || mode == HexaTrack.Api.Domain.UserMode.SuperAdmin ? null : validatedRequest.OrganizationId,
+                BranchId = mode == HexaTrack.Api.Domain.UserMode.Individual || mode == HexaTrack.Api.Domain.UserMode.SuperAdmin ? null : validatedRequest.BranchId,
+                OrganizationRole = mode == HexaTrack.Api.Domain.UserMode.Individual || mode == HexaTrack.Api.Domain.UserMode.SuperAdmin ? null : validatedRequest.OrganizationRole,
+                Department = mode == HexaTrack.Api.Domain.UserMode.Individual || mode == HexaTrack.Api.Domain.UserMode.SuperAdmin ? null : validatedRequest.Department,
             };
 
             db.Users.Add(user);
-            WorkspaceRole membershipRole = request.InitialWorkspaceRole ?? WorkspaceRole.Owner;
-            AddStarterWorkspaceWithSeed(db, user.Id, workspaceName, request.WorkspaceType, currency, membershipRole);
+            WorkspaceRole membershipRole = validatedRequest.InitialWorkspaceRole ?? WorkspaceRole.Owner;
+            AddStarterWorkspaceWithSeed(db, user.Id, workspaceName, validatedRequest.WorkspaceType, currency, membershipRole);
             await db.SaveChangesAsync(ct);
 
             string meta = JsonSerializer.Serialize(new
@@ -149,7 +158,7 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
             });
             await audit.LogAsync(actorUserId, "user.create", "User", user.Id, meta, ct);
 
-            return new AdminCreateUserResponse(user.Id, user.Email, user.DisplayName, user.IsSuperAdmin, request.Password);
+            return new AdminCreateUserResponse(user.Id, user.Email, user.DisplayName, user.IsSuperAdmin, validatedRequest.Password);
         }, cancellationToken);
 
     public async Task SetSuperAdminAsync(Guid targetUserId, bool isSuperAdmin, Guid actorUserId, CancellationToken cancellationToken)
@@ -371,6 +380,19 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
 
         Guid workspaceId = workspace.Id;
 
+        // Seeding default feature flags for the new workspace
+        string[] defaultFlags = ["Income", "Expenses", "Categories", "Analytics", "Notifications", "PWA"];
+        foreach (string flag in defaultFlags)
+        {
+            dbContext.WorkspaceFeatureToggles.Add(new WorkspaceFeatureToggle
+            {
+                WorkspaceId = workspaceId,
+                FeatureKey = flag,
+                IsEnabled = true,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
         Account[] starterAccounts =
         [
             new() { WorkspaceId = workspaceId, UserId = userId, Name = "Primary Bank", Type = AccountType.Bank, Currency = currency, Balance = 0 },
@@ -379,29 +401,32 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
             new() { WorkspaceId = workspaceId, UserId = userId, Name = "Credit Card", Type = AccountType.Credit, Currency = currency, Balance = 0 }
         ];
 
-        var salary = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Salary", Type = TransactionType.Income, Color = "#10b981", Icon = "Briefcase" };
-        var freelance = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Freelance", Type = TransactionType.Income, Color = "#06b6d4", Icon = "Laptop" };
-        var business = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Business", Type = TransactionType.Income, Color = "#3b82f6", Icon = "Store" };
-        var investments = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Investments", Type = TransactionType.Income, Color = "#f59e0b", Icon = "TrendingUp" };
-        var bonus = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Bonus", Type = TransactionType.Income, Color = "#a855f7", Icon = "Gift" };
+        var salary = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Salary", Type = TransactionType.Income, Color = "#10b981", Icon = "Briefcase" };
+        var freelance = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Freelance", Type = TransactionType.Income, Color = "#06b6d4", Icon = "Laptop" };
+        var business = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Business", Type = TransactionType.Income, Color = "#3b82f6", Icon = "Store" };
+        var investments = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Investments", Type = TransactionType.Income, Color = "#f59e0b", Icon = "TrendingUp" };
+        var bonus = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Bonus", Type = TransactionType.Income, Color = "#a855f7", Icon = "Gift" };
 
-        var food = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Food", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils" };
-        var transport = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Transport", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus" };
-        var bills = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Bills", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap" };
-        var shopping = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Shopping", Type = TransactionType.Expense, Color = "#ec4899", Icon = "ShoppingBag" };
-        var entertainment = new Category { WorkspaceId = workspaceId, UserId = userId, Name = "Entertainment", Type = TransactionType.Expense, Color = "#8b5cf6", Icon = "Film" };
+        var food = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Food", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils" };
+        var transport = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Transport", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus" };
+        var bills = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Bills", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap" };
+        var shopping = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Shopping", Type = TransactionType.Expense, Color = "#ec4899", Icon = "ShoppingBag" };
+        var entertainment = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Entertainment", Type = TransactionType.Expense, Color = "#8b5cf6", Icon = "Film" };
 
         dbContext.Categories.AddRange([salary, freelance, business, investments, bonus, food, transport, bills, shopping, entertainment]);
 
-        var restaurant = new Category { WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Restaurant", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils" };
-        var cafe = new Category { WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Cafe", Type = TransactionType.Expense, Color = "#f97316", Icon = "Coffee" };
-        var groceries = new Category { WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Groceries", Type = TransactionType.Expense, Color = "#f97316", Icon = "ShoppingCart" };
+        var restaurant = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Restaurant", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils" };
+        var cafe = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Cafe", Type = TransactionType.Expense, Color = "#f97316", Icon = "Coffee" };
+        var groceries = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Groceries", Type = TransactionType.Expense, Color = "#f97316", Icon = "ShoppingCart" };
 
-        var fuel = new Category { WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Fuel", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Fuel" };
-        var taxi = new Category { WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Taxi", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Car" };
-        var bus = new Category { WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Bus", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus" };
+        var fuel = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Fuel", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Fuel" };
+        var taxi = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Taxi", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Car" };
+        var bus = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Bus", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus" };
 
-        dbContext.Categories.AddRange([restaurant, cafe, groceries, fuel, taxi, bus]);
+        var electricity = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = bills.Id, Name = "Electricity", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap" };
+        var internet = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = bills.Id, Name = "Internet", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Wifi" };
+
+        dbContext.Categories.AddRange([restaurant, cafe, groceries, fuel, taxi, bus, electricity, internet]);
 
         dbContext.Accounts.AddRange(starterAccounts);
     }

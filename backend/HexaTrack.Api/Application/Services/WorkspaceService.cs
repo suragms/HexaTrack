@@ -55,6 +55,7 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
                 WorkspaceRole role = user.Mode == UserMode.BranchManager ? WorkspaceRole.Owner : WorkspaceRole.Member;
                 await EnsureMemberAsync(branchWorkspaceId, user.Id, role, cancellationToken);
                 await EnsureStarterFinanceDataAsync(branchWorkspaceId, user.Id, user.OrganizationId, user.BranchId, branch.Currency ?? "USD", cancellationToken);
+                EnsureDefaultFeatureFlags(branchWorkspaceId);
                 await db.SaveChangesAsync(cancellationToken);
                 return;
             }
@@ -77,6 +78,7 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
                 branch.WorkspaceId = branchWorkspace.Id;
                 db.WorkspaceMembers.Add(new WorkspaceMember { WorkspaceId = branchWorkspace.Id, UserId = user.Id, Role = user.Mode == UserMode.BranchManager ? WorkspaceRole.Owner : WorkspaceRole.Member });
                 await EnsureStarterFinanceDataAsync(branchWorkspace.Id, user.Id, branchWorkspace.OrganizationId, user.BranchId, branchWorkspace.Currency, cancellationToken);
+                EnsureDefaultFeatureFlags(branchWorkspace.Id);
                 await db.SaveChangesAsync(cancellationToken);
                 return;
             }
@@ -109,6 +111,7 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
 
             await EnsureMemberAsync(orgWorkspace.Id, user.Id, user.OrganizationRole == "Owner" ? WorkspaceRole.Owner : WorkspaceRole.Member, cancellationToken);
             await EnsureStarterFinanceDataAsync(orgWorkspace.Id, user.Id, user.OrganizationId, null, orgWorkspace.Currency, cancellationToken);
+            EnsureDefaultFeatureFlags(orgWorkspace.Id);
             await db.SaveChangesAsync(cancellationToken);
             return;
         }
@@ -121,6 +124,7 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
         {
             await EnsureMemberAsync(personalWorkspace.Id, user.Id, WorkspaceRole.Owner, cancellationToken);
             await EnsureStarterFinanceDataAsync(personalWorkspace.Id, user.Id, null, null, personalWorkspace.Currency, cancellationToken);
+            EnsureDefaultFeatureFlags(personalWorkspace.Id);
             await db.SaveChangesAsync(cancellationToken);
             return;
         }
@@ -139,6 +143,7 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
         db.Workspaces.Add(workspace);
         db.WorkspaceMembers.Add(new WorkspaceMember { WorkspaceId = workspace.Id, UserId = user.Id, Role = WorkspaceRole.Owner });
         await EnsureStarterFinanceDataAsync(workspace.Id, user.Id, null, null, workspace.Currency, cancellationToken);
+        EnsureDefaultFeatureFlags(workspace.Id);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -197,6 +202,25 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
                 new Category { WorkspaceId = workspaceId, UserId = userId, OrganizationId = organizationId, BranchId = branchId, Name = "Shopping", Type = TransactionType.Expense, Color = "#ec4899", Icon = "ShoppingBag" },
                 new Category { WorkspaceId = workspaceId, UserId = userId, OrganizationId = organizationId, BranchId = branchId, Name = "Travel", Type = TransactionType.Expense, Color = "#0ea5e9", Icon = "Plane" },
                 new Category { WorkspaceId = workspaceId, UserId = userId, OrganizationId = organizationId, BranchId = branchId, Name = "Utilities", Type = TransactionType.Expense, Color = "#64748b", Icon = "Zap" });
+        }
+    }
+
+    private void EnsureDefaultFeatureFlags(Guid workspaceId)
+    {
+        string[] defaultFlags = ["Income", "Expenses", "Categories", "Analytics", "Notifications", "PWA"];
+        foreach (string flag in defaultFlags)
+        {
+            bool exists = db.WorkspaceFeatureToggles.Any(f => f.WorkspaceId == workspaceId && f.FeatureKey == flag);
+            if (!exists)
+            {
+                db.WorkspaceFeatureToggles.Add(new WorkspaceFeatureToggle
+                {
+                    WorkspaceId = workspaceId,
+                    FeatureKey = flag,
+                    IsEnabled = true,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
         }
     }
 
