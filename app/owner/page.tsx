@@ -236,9 +236,8 @@ export default function OwnerDashboard() {
         style={{
           minHeight: '100dvh',
           overflowX: 'hidden',
-          overflowY: 'auto',
+          overflowY: 'visible',
           position: 'relative',
-          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
 
@@ -268,13 +267,12 @@ export default function OwnerDashboard() {
 
         {/* Scrollable Content */}
         <main
-          className="flex-1 overflow-y-auto overflow-x-hidden"
+          className="w-full"
           style={{
             paddingLeft: 16,
             paddingRight: 16,
             paddingTop: 16,
-            paddingBottom: 'calc(110px + env(safe-area-inset-bottom))',
-            WebkitOverflowScrolling: 'touch',
+            paddingBottom: 'calc(120px + env(safe-area-inset-bottom))',
           }}
         >
           {error && <StatusBanner error={error} loading={false} onDismiss={clearError} />}

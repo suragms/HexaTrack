@@ -42,13 +42,13 @@ export function BottomSheet({ open, onClose, children, labelledBy, fullHeight = 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             onClick={onClose}
-            className="sheet-backdrop fixed inset-0 z-[9999] bg-[#102A43]/35 backdrop-blur-[12px]"
+            className="sheet-backdrop fixed inset-0 z-[10000] bg-[#102A43]/35 backdrop-blur-[12px]"
             aria-hidden="true"
           />
 
           {/* Panel Container */}
           <div 
-            className="fixed inset-x-0 bottom-0 z-[10000] flex items-end justify-center overflow-x-hidden overflow-y-visible pointer-events-none pt-8 sm:inset-0 sm:items-center sm:pt-0"
+            className="fixed inset-x-0 bottom-0 z-[10005] flex items-end justify-center overflow-x-hidden overflow-y-visible pointer-events-none pt-8 sm:inset-0 sm:items-center sm:pt-0"
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelledBy}

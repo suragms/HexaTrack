@@ -13,7 +13,7 @@ type BottomNavProps = {
 export function BottomNav({ activeScreen, onAddTransaction, onNavigate }: BottomNavProps) {
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[9000] pointer-events-auto"
+      className="fixed inset-x-0 bottom-0 z-[9999] pointer-events-auto"
       style={{
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(20px)',

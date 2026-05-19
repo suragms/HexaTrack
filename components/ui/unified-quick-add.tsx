@@ -43,7 +43,7 @@ export function UnifiedQuickAdd() {
     const handleOpenEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ type?: TransactionType; menu?: boolean }>;
       if (customEvent.detail?.menu) {
-        setShowMenu(true);
+        setShowMenu((prev) => !prev);
         return;
       }
 

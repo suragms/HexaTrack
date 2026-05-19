@@ -89,16 +89,14 @@ export function AppShell({ activeScreen, children, onAddTransaction, onNavigate 
         style={{
           minHeight: '100dvh',
           overflowX: 'hidden',
-          overflowY: 'auto',
+          overflowY: 'visible',
           position: 'relative',
-          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
         <main
-          className="flex-1 overflow-y-auto overflow-x-hidden"
+          className="w-full"
           style={{
-            paddingBottom: 'calc(110px + env(safe-area-inset-bottom))',
-            WebkitOverflowScrolling: 'touch',
+            paddingBottom: 'calc(120px + env(safe-area-inset-bottom))',
           }}
         >
           {children}
