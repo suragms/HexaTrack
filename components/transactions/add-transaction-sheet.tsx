@@ -395,7 +395,7 @@ export function AddTransactionSheet({
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
+      <div className="fintech-clean flex flex-col flex-1 min-h-0 overflow-hidden relative">
         <AnimatePresence mode="wait">
           {/* ── STEP 1: SELECT TYPE MENU ── */}
           {step === 'menu' && (
@@ -1031,4 +1031,3 @@ export function AddTransactionSheet({
     </BottomSheet>
   );
 }
-

@@ -97,7 +97,7 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
   return (
     <>
       {/* ─── DESKTOP LAYOUT (xl+) ─── */}
-      <div className="hidden md:flex min-h-screen bg-[#0B1020] text-on-surface font-sans selection:bg-cyan/30">
+      <div className="fintech-clean hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
         <StaffSidebar active={view} onNavigate={(href) => router.push(href)} onLogout={handleLogout} />
         <main className="min-w-0 flex-1 overflow-y-auto">
           <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#0B1020]/80 px-8 py-4.5 backdrop-blur-xl">
@@ -120,7 +120,7 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
       </div>
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
-      <div className="md:hidden flex flex-col bg-[#050816] text-on-surface font-sans" style={{ height: '100dvh' }}>
+      <div className="fintech-clean md:hidden flex flex-col bg-[#F5F7F8] text-[#102A43] font-sans" style={{ height: '100dvh' }}>
         {/* Compact Mobile Header */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
           <div className="flex items-center gap-3 min-w-0">
@@ -185,10 +185,10 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
               onClick={() => router.push('/staff/dashboard')}
             />
             <StaffMobileNavItem
-              active={view === 'tasks'}
-              icon={CheckCircle2}
-              label="Tasks"
-              onClick={() => router.push('/staff/tasks')}
+              active={view === 'reports'}
+              icon={FileText}
+              label="Reports"
+              onClick={() => router.push('/staff/reports')}
             />
             {/* Center FAB */}
             <div className="relative flex items-center justify-center" style={{ height: 82 }}>

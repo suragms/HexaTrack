@@ -3,20 +3,20 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --background: #050816;
-  --surface: #0E152B;
-  --foreground: #E1E2EC;
-  --primary: #10B981;
-  --primary-muted: rgba(16, 185, 129, 0.12);
-  --secondary: #0D9488;
+  color-scheme: light;
+  --background: #F5F7F8;
+  --surface: #FFFFFF;
+  --foreground: #102A43;
+  --primary: #0F9D8A;
+  --primary-muted: rgba(15, 157, 138, 0.12);
+  --secondary: #00BFA6;
   --tertiary: #FFB77B;
   --success: #10B981;
   --success-muted: rgba(16, 185, 129, 0.12);
   --danger: #EF4444;
   --danger-muted: rgba(239, 68, 68, 0.12);
-  --muted: #C2C6D6;
-  --border: rgba(140, 144, 159, 0.15);
+  --muted: #6B7280;
+  --border: #E5E7EB;
   
   --safe-top: env(safe-area-inset-top);
   --safe-right: env(safe-area-inset-right);
@@ -53,8 +53,8 @@ body {
   overflow-x: clip;
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  letter-spacing: -0.01em;
+  font-family: 'Inter', 'Manrope', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -300,4 +300,65 @@ video {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+.fintech-clean {
+  color: #102A43;
+  background: #F5F7F8;
+}
+
+.fintech-clean [class*="bg-[#050816]"],
+.fintech-clean [class*="bg-[#0B1015]"],
+.fintech-clean [class*="bg-[#0B1020]"] {
+  background-color: #F5F7F8 !important;
+}
+
+.fintech-clean [class*="bg-[#0E152B]"],
+.fintech-clean [class*="bg-[#0E1425]"],
+.fintech-clean [class*="bg-[#1D1F27]"] {
+  background-color: #FFFFFF !important;
+}
+
+.fintech-clean [class*="text-white"],
+.fintech-clean [class*="text-[#F5F7FA]"],
+.fintech-clean [class*="text-[#E1E2EC]"],
+.fintech-clean [class*="text-on-surface"] {
+  color: #102A43 !important;
+}
+
+.fintech-clean [class*="text-[#C2C6D6]"],
+.fintech-clean [class*="text-on-surface-variant"] {
+  color: #6B7280 !important;
+}
+
+.fintech-clean [class*="border-white"],
+.fintech-clean [class*="border-outline"] {
+  border-color: #E5E7EB !important;
+}
+
+.fintech-clean .glass-card,
+.fintech-clean .glass-panel,
+.fintech-clean .card,
+.fintech-clean .surface {
+  background: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 18px 45px rgba(16, 42, 67, 0.08) !important;
+}
+
+.fintech-clean [class*="text-primary"],
+.fintech-clean [class*="text-emerald"],
+.fintech-clean [class*="text-cyan"],
+.fintech-clean [class*="text-teal"] {
+  color: #0F9D8A !important;
+}
+
+.fintech-clean [class*="bg-primary"],
+.fintech-clean [class*="bg-cyan"],
+.fintech-clean [class*="bg-emerald"] {
+  background-color: #0F9D8A !important;
+}
+
+.fintech-clean [class*="shadow-[0_0"],
+.fintech-clean [class*="shadow-lg"] {
+  box-shadow: 0 18px 45px rgba(16, 42, 67, 0.08) !important;
 }

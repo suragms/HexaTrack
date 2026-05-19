@@ -1,66 +1,32 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useAuthStore } from '@/store/auth-store';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  Building2,
+  CreditCard,
+  Search,
+  Shield,
+  TrendingUp,
+  Users,
+  WalletCards,
+} from 'lucide-react';
+import { BrandMark } from '@/components/ui/brand';
 import { hexaTrackApi } from '@/lib/api';
 import type { AdminAnalyticsDashboard } from '@/lib/types';
-import {
-  Building2, Users, GitBranch, CreditCard, TrendingUp, TrendingDown,
-  Activity, Globe, Zap, BarChart3, WalletCards
-} from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useAuthStore } from '@/store/auth-store';
 
-type MetricCardProps = {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ElementType;
-  color: string;
-  delay?: number;
-};
-
-function MetricCard({ title, value, subtitle, icon: Icon, color, delay = 0 }: MetricCardProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay }}
-      className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5"
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center`} style={{ background: `${color}15` }}>
-          <Icon size={18} style={{ color }} />
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-white tracking-tight">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-      <p className="text-[11px] font-medium text-gray-500 mt-1">{title}</p>
-      {subtitle && <p className="text-[10px] text-gray-600 mt-0.5">{subtitle}</p>}
-    </motion.div>
-  );
-}
-
-function MiniChart({ data, color }: { data: number[]; color: string }) {
-  if (!data.length) return null;
-  const max = Math.max(...data, 1);
-  const points = data.map((v, i) => `${(i / (data.length - 1)) * 100},${100 - (v / max) * 80}`).join(' ');
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-16" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={`0,100 ${points} 100,100`} fill={`url(#grad-${color})`} />
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
+const tabs = ['Today', 'Week', 'Month', 'Year'] as const;
 
 export default function SuperAdminDashboard() {
-  const { accessToken } = useAuthStore();
+  const { accessToken, user } = useAuthStore();
   const [data, setData] = useState<AdminAnalyticsDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Month');
 
   useEffect(() => {
     if (!accessToken) return;
@@ -70,163 +36,178 @@ export default function SuperAdminDashboard() {
       .finally(() => setLoading(false));
   }, [accessToken]);
 
+  const d = data ?? ({} as AdminAnalyticsDashboard);
+  const totalUsers = d.cumulativeUsersByDay?.at(-1)?.value ?? 0;
+  const organizationCount = (d.totalActiveOrganizations ?? 0) + (d.totalSuspendedOrganizations ?? 0);
+  const transactionSeries = d.transactionsByDay?.slice(-14).map((p) => p.value) ?? [];
+  const maxSeries = Math.max(...transactionSeries, 1);
+  const revenueEfficiency = Math.max(0, Math.min(100, Math.round(((d.totalSystemNet30d ?? 0) / Math.max(d.totalSystemIncome30d ?? 1, 1)) * 100)));
+
+  const cards = useMemo(() => [
+    { title: 'Users', value: totalUsers, subtitle: `${d.totalIndividualUsers ?? 0} individual`, icon: Users, color: '#0F9D8A' },
+    { title: 'Organizations', value: organizationCount, subtitle: `${d.totalSuspendedOrganizations ?? 0} suspended`, icon: Building2, color: '#00BFA6' },
+    { title: 'Revenue', value: `INR ${(d.estimatedMrrInr ?? 0).toLocaleString()}`, subtitle: `${d.payingSubscriptionCount ?? 0} paying`, icon: CreditCard, color: '#10B981' },
+    { title: 'Alerts', value: d.activeSessions ?? 0, subtitle: 'active sessions', icon: AlertTriangle, color: '#F59E0B' },
+  ], [d.activeSessions, d.estimatedMrrInr, d.payingSubscriptionCount, d.totalIndividualUsers, d.totalSuspendedOrganizations, organizationCount, totalUsers]);
+
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 w-64 bg-white/[0.04] rounded-lg" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-32 bg-white/[0.04] rounded-2xl" />
-            ))}
+      <div className="min-h-screen bg-[#F5F7F8] p-6">
+        <div className="mx-auto max-w-7xl animate-pulse space-y-5">
+          <div className="h-16 rounded-[28px] bg-white" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => <div key={item} className="h-36 rounded-[28px] bg-white" />)}
           </div>
+          <div className="h-80 rounded-[28px] bg-white" />
         </div>
       </div>
     );
   }
 
-  const d = data ?? {} as AdminAnalyticsDashboard;
-  const txGrowth = d.transactionsByDay?.slice(-14).map(p => p.value) ?? [];
-  const totalUsers = d.cumulativeUsersByDay?.at(-1)?.value ?? 0;
-
   return (
-    <div className="p-4 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-end gap-2">
-        <div>
-          <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] mb-1">Command Center</p>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white tracking-tight">Platform Overview</h1>
-        </div>
-        <div className="sm:ml-auto flex items-center gap-2">
-          <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full">
-            <Activity size={12} className="animate-pulse" />
-            System Healthy
-          </span>
-        </div>
-      </motion.div>
-
-      {/* Primary metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <MetricCard title="Total Users" value={totalUsers} icon={Users} color="#10B981" delay={0.05} />
-        <MetricCard title="Total Organizations" value={(d.totalActiveOrganizations ?? 0) + (d.totalSuspendedOrganizations ?? 0)} subtitle={`${d.totalSuspendedOrganizations ?? 0} suspended`} icon={Building2} color="#0D9488" delay={0.1} />
-        <MetricCard title="Total Workspaces" value={d.totalWorkspaces ?? 0} icon={Globe} color="#F59E0B" delay={0.15} />
-        <MetricCard title="Revenue Metrics" value={`INR ${(d.estimatedMrrInr ?? 0).toLocaleString()}`} subtitle={`${d.payingSubscriptionCount ?? 0} paying subscriptions`} icon={CreditCard} color="#EC4899" delay={0.2} />
-      </div>
-
-      {/* Secondary metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <MetricCard title="Individual Users" value={d.totalIndividualUsers ?? 0} icon={Users} color="#8B5CF6" delay={0.25} />
-        <MetricCard title="Active Branches" value={d.activeBranches ?? 0} icon={GitBranch} color="#10B981" delay={0.3} />
-        <MetricCard title="Total Transactions" value={d.totalTransactions ?? 0} icon={WalletCards} color="#0D9488" delay={0.35} />
-        <MetricCard title="Active Sessions" value={d.activeSessions ?? 0} subtitle="Last 24 hours" icon={Activity} color="#F59E0B" delay={0.4} />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <MetricCard title="Organization Users" value={d.totalOrganizationUsers ?? 0} icon={Building2} color="#10B981" delay={0.45} />
-        <MetricCard title="30d Income" value={`INR ${(d.totalSystemIncome30d ?? 0).toLocaleString()}`} icon={TrendingUp} color="#10B981" delay={0.5} />
-        <MetricCard title="30d Expense" value={`INR ${(d.totalSystemExpense30d ?? 0).toLocaleString()}`} icon={TrendingDown} color="#EF4444" delay={0.55} />
-        <MetricCard title="30d Net" value={`INR ${(d.totalSystemNet30d ?? 0).toLocaleString()}`} icon={BarChart3} color="#EC4899" delay={0.6} />
-      </div>
-
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* User growth */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-400">User Growth</p>
-              <p className="text-lg font-bold text-white">{totalUsers}</p>
+    <div className="min-h-screen bg-[#F5F7F8] text-[#102A43]">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:py-8">
+        <header className="sticky top-0 z-30 -mx-4 border-b border-[#E5E7EB]/70 bg-[#F5F7F8]/90 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white shadow-[0_10px_30px_rgba(15,157,138,0.14)] ring-1 ring-[#E5E7EB]">
+              <BrandMark tone="light" className="h-6 w-auto" />
             </div>
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <Users size={14} className="text-emerald-400" />
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-bold uppercase tracking-[0.16em] text-[#0F9D8A]">Super Admin</p>
+              <h1 className="truncate text-lg font-extrabold tracking-tight text-[#102A43]">Platform Overview</h1>
             </div>
-          </div>
-          <MiniChart data={d.cumulativeUsersByDay?.map(p => p.value) ?? []} color="#10B981" />
-        </motion.div>
-
-        {/* Transaction volume */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-400">Transaction Volume</p>
-              <p className="text-lg font-bold text-white">{txGrowth.reduce((s, v) => s + v, 0).toLocaleString()}</p>
-            </div>
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <BarChart3 size={14} className="text-primary" />
-            </div>
-          </div>
-          <MiniChart data={txGrowth} color="#0D9488" />
-        </motion.div>
-
-        {/* Organization growth */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-400">Organization Growth</p>
-              <p className="text-lg font-bold text-white">{(d.totalActiveOrganizations ?? 0) + (d.totalSuspendedOrganizations ?? 0)}</p>
-            </div>
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <Globe size={14} className="text-amber-400" />
-            </div>
-          </div>
-          <MiniChart data={d.organizationGrowthByDay?.map(p => p.value) ?? []} color="#F59E0B" />
-        </motion.div>
-      </div>
-
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-xs font-semibold text-gray-400">Workspace Activity</p>
-            <p className="text-lg font-bold text-white">{d.workspaceActivityByDay?.slice(-7).reduce((s, p) => s + p.value, 0).toLocaleString() ?? 0}</p>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-            <Activity size={14} className="text-emerald-400" />
-          </div>
-        </div>
-        <MiniChart data={d.workspaceActivityByDay?.map(p => p.value) ?? []} color="#10B981" />
-      </motion.div>
-
-      {/* Subscription breakdown */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
-        <p className="text-xs font-semibold text-gray-400 mb-4">Subscription Distribution</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {(d.activeSubscriptionsByPlan ?? []).map((plan, i) => {
-            const colors = ['#10B981', '#0D9488', '#F59E0B', '#EC4899'];
-            const c = colors[i % colors.length];
-            return (
-              <div key={plan.plan} className="rounded-xl border border-white/[0.04] bg-white/[0.02] p-4 text-center">
-                <div className="w-3 h-3 rounded-full mx-auto mb-2" style={{ background: c }} />
-                <p className="text-xl font-bold text-white">{plan.count}</p>
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mt-1">{plan.plan}</p>
+            <div className="ml-auto flex items-center gap-2">
+              <IconButton label="Search" icon={Search} />
+              <IconButton label="Notifications" icon={Bell} hasBadge />
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#0F9D8A] to-[#00BFA6] text-sm font-black text-white">
+                {(user?.displayName ?? 'S').charAt(0).toUpperCase()}
               </div>
-            );
-          })}
-        </div>
-      </motion.div>
+            </div>
+          </div>
+        </header>
 
-      {/* Quick actions */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="rounded-2xl border border-white/[0.06] bg-[#0E1425] p-5">
-        <p className="text-xs font-semibold text-gray-400 mb-4">Quick Actions</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'New Workspace', href: '/super-admin/workspaces', icon: Zap, color: '#10B981' },
-            { label: 'New Organization', href: '/super-admin/organizations', icon: Building2, color: '#0D9488' },
-            { label: 'Manage Users', href: '/super-admin/users', icon: Users, color: '#F59E0B' },
-            { label: 'View Analytics', href: '/super-admin/analytics', icon: BarChart3, color: '#EC4899' },
-          ].map((action) => (
-            <a
-              key={action.label}
-              href={action.href}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.04] transition-all group"
+        <section className="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0F9D8A] via-[#00BFA6] to-[#0B6B61] p-5 text-white shadow-[0_22px_55px_rgba(15,157,138,0.28)] lg:p-7">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white/75">Platform revenue health</p>
+              <p className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">INR {(d.estimatedMrrInr ?? 0).toLocaleString()}</p>
+              <p className="mt-3 text-sm font-semibold text-white/80">{revenueEfficiency}% net efficiency over the last 30 days</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 rounded-3xl bg-white/15 p-2 backdrop-blur">
+              <HeroStat label="Users" value={totalUsers.toLocaleString()} />
+              <HeroStat label="Workspaces" value={(d.totalWorkspaces ?? 0).toLocaleString()} />
+              <HeroStat label="Transactions" value={(d.totalTransactions ?? 0).toLocaleString()} />
+            </div>
+          </div>
+        </section>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`h-10 shrink-0 rounded-full px-5 text-sm font-bold transition ${
+                activeTab === tab ? 'bg-[#0F9D8A] text-white shadow-[0_12px_24px_rgba(15,157,138,0.24)]' : 'bg-white text-[#6B7280] ring-1 ring-[#E5E7EB]'
+              }`}
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: `${action.color}15` }}>
-                <action.icon size={18} style={{ color: action.color }} />
-              </div>
-              <p className="text-[11px] font-semibold text-gray-400 group-hover:text-white transition-colors">{action.label}</p>
-            </a>
+              {tab}
+            </button>
           ))}
         </div>
-      </motion.div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {cards.map((card, index) => (
+            <motion.section
+              key={card.title}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className="rounded-[28px] border border-[#E5E7EB] bg-white p-5 shadow-[0_18px_45px_rgba(16,42,67,0.08)]"
+            >
+              <div className="flex items-center justify-between">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#EAF8F6]" style={{ color: card.color }}>
+                  <card.icon size={21} />
+                </div>
+                <span className="rounded-full bg-[#F5F7F8] px-2.5 py-1 text-[11px] font-bold text-[#6B7280]">{card.subtitle}</span>
+              </div>
+              <p className="mt-5 truncate text-2xl font-black tracking-tight text-[#102A43]">{typeof card.value === 'number' ? card.value.toLocaleString() : card.value}</p>
+              <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-[#6B7280]">{card.title}</p>
+            </motion.section>
+          ))}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+          <section className="rounded-[28px] border border-[#E5E7EB] bg-white p-5 shadow-[0_18px_45px_rgba(16,42,67,0.08)] lg:p-7">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-extrabold text-[#102A43]">Realtime Analytics</p>
+                <p className="mt-1 text-xs font-medium text-[#6B7280]">Transaction volume from live platform metrics</p>
+              </div>
+              <BarChart3 className="text-[#0F9D8A]" />
+            </div>
+            <div className="mt-8 flex h-64 items-end gap-2">
+              {(transactionSeries.length ? transactionSeries : [0, 0, 0, 0, 0, 0, 0]).map((value, index) => (
+                <motion.div
+                  key={`${value}-${index}`}
+                  initial={{ height: 0 }}
+                  animate={{ height: `${Math.max(8, (value / maxSeries) * 100)}%` }}
+                  transition={{ duration: 0.55, delay: index * 0.03 }}
+                  className="flex-1 rounded-t-2xl bg-gradient-to-t from-[#0B6B61] via-[#0F9D8A] to-[#00BFA6] shadow-[0_12px_24px_rgba(15,157,138,0.18)]"
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[#E5E7EB] bg-white p-5 shadow-[0_18px_45px_rgba(16,42,67,0.08)] lg:p-7">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-extrabold text-[#102A43]">SaaS Metrics</p>
+                <p className="mt-1 text-xs font-medium text-[#6B7280]">No fake data, API backed</p>
+              </div>
+              <Activity className="text-[#10B981]" />
+            </div>
+            <div className="mt-5 space-y-3">
+              <MetricLine label="Active branches" value={(d.activeBranches ?? 0).toLocaleString()} icon={Shield} />
+              <MetricLine label="Organization users" value={(d.totalOrganizationUsers ?? 0).toLocaleString()} icon={Users} />
+              <MetricLine label="30d income" value={`INR ${(d.totalSystemIncome30d ?? 0).toLocaleString()}`} icon={TrendingUp} />
+              <MetricLine label="30d expense" value={`INR ${(d.totalSystemExpense30d ?? 0).toLocaleString()}`} icon={WalletCards} />
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IconButton({ label, icon: Icon, hasBadge = false }: { label: string; icon: React.ElementType; hasBadge?: boolean }) {
+  return (
+    <button type="button" aria-label={label} className="relative grid h-10 w-10 place-items-center rounded-full bg-white text-[#102A43] shadow-sm ring-1 ring-[#E5E7EB] transition hover:text-[#0F9D8A]">
+      <Icon size={18} />
+      {hasBadge && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#10B981] ring-2 ring-white" />}
+    </button>
+  );
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/15 px-4 py-3 text-center">
+      <p className="text-lg font-black">{value}</p>
+      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{label}</p>
+    </div>
+  );
+}
+
+function MetricLine({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F5F7F8] p-3">
+      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-[#0F9D8A] shadow-sm">
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-[#6B7280]">{label}</p>
+        <p className="truncate text-base font-black text-[#102A43]">{value}</p>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2, X, Shield, Building2, Network, User, ArrowRight, 
 import { FormEvent, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { ApiError, hexaTrackApi } from '@/lib/api';
+import { showToast } from '@/components/ui/toast';
 import type { LightOrganization, LightBranch } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -184,7 +185,10 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
         workspaceName: parsed.data.workspaceName,
       });
     } catch (error) {
-       setApiError(error instanceof ApiError ? error.message : 'Failed to create real user identity.');
+       console.error(error);
+       const message = error instanceof ApiError ? error.message : 'Failed to create real user identity.';
+       setApiError(message);
+       showToast('error', message);
     } finally {
        setSubmitting(false);
     }

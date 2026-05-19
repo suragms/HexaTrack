@@ -123,7 +123,7 @@ export default function OwnerDashboard() {
       {/* Dynamic Shared Components */}
 
       {/* ─── DESKTOP LAYOUT (md+) ─── */}
-      <div className="hidden md:flex min-h-screen bg-[#0B1015] text-white font-sans selection:bg-[#4F8CFF]/30">
+      <div className="fintech-clean hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
         {/* Desktop Sidebar */}
         <aside className="w-[280px] border-r border-white/[0.05] bg-[#0B1015] flex flex-col sticky top-0 h-screen">
           <div className="h-20 flex items-center px-7 border-b border-white/[0.04]">
@@ -231,7 +231,7 @@ export default function OwnerDashboard() {
       </div>
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
-      <div className="md:hidden flex flex-col bg-[#050816] text-white font-sans" style={{ height: '100dvh' }}>
+      <div className="fintech-clean md:hidden flex flex-col bg-[#F5F7F8] text-[#102A43] font-sans" style={{ height: '100dvh' }}>
 
         {/* Mobile Header — compact 72px */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
@@ -311,10 +311,10 @@ export default function OwnerDashboard() {
               onClick={() => setActiveTab('overview')}
             />
             <OwnerNavItem
-              active={activeTab === 'transactions' || activeTab === 'ledger'}
-              icon={History}
-              label="History"
-              onClick={() => setActiveTab('ledger')}
+              active={activeTab === 'reports'}
+              icon={BarChart3}
+              label="Reports"
+              onClick={() => setActiveTab('reports')}
             />
             {/* Center FAB */}
             <div className="relative flex items-center justify-center" style={{ height: 82 }}>
@@ -338,15 +338,15 @@ export default function OwnerDashboard() {
               </motion.button>
             </div>
             <OwnerNavItem
-              active={activeTab === 'reports'}
-              icon={BarChart3}
-              label="Reports"
-              onClick={() => setActiveTab('reports')}
+              active={activeTab === 'transactions' || activeTab === 'ledger'}
+              icon={History}
+              label="History"
+              onClick={() => setActiveTab('ledger')}
             />
             <OwnerNavItem
               active={activeTab === 'settings'}
               icon={Settings}
-              label="Settings"
+              label="Profile"
               onClick={() => setActiveTab('settings')}
             />
           </nav>
