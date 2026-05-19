@@ -93,10 +93,14 @@ export type AdminCreateUserRequest = {
 };
 
 export type AdminCreateUserResponse = {
+  success?: boolean;
   id: string;
+  userId?: string;
+  workspaceId?: string;
   email: string;
   displayName: string;
   isSuperAdmin: boolean;
+  temporaryPassword?: string | null;
   plaintextPassword?: string | null;
 };
 

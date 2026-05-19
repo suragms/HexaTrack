@@ -1,6 +1,7 @@
 using System.Net.Mail;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using HexaTrack.Api.Application.Dtos;
 using HexaTrack.Api.Domain;
 using HexaTrack.Api.Domain.Entities;
@@ -20,7 +21,11 @@ public interface IAdminUsersService
     Task ResetPasswordAsync(Guid targetUserId, string newPassword, Guid actorUserId, CancellationToken cancellationToken);
 }
 
-public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService audit, IUnitOfWork unitOfWork) : IAdminUsersService
+public sealed class AdminUsersService(
+    HexaTrackDbContext db,
+    IAdminAuditService audit,
+    IUnitOfWork unitOfWork,
+    ILogger<AdminUsersService> logger) : IAdminUsersService
 {
     public async Task<AdminUserListResult> ListAsync(AdminUserListFilter filter, int page, int pageSize, CancellationToken cancellationToken)
     {
@@ -91,9 +96,12 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
         return new AdminUserListResult(items, page, pageSize, total);
     }
 
-    public Task<AdminCreateUserResponse> CreateAsync(AdminCreateUserRequest request, Guid actorUserId, CancellationToken cancellationToken)
-        => unitOfWork.ExecuteInTransactionAsync(async ct =>
+    public async Task<AdminCreateUserResponse> CreateAsync(AdminCreateUserRequest request, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        try
         {
+            AdminCreateUserResponse response = await unitOfWork.ExecuteInTransactionAsync(async ct =>
+            {
             // Derive UserMode from request properties
             HexaTrack.Api.Domain.UserMode mode;
             if (request.IsSuperAdmin)
@@ -120,9 +128,19 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
             ValidateAdminCreateRequest(validatedRequest);
 
             string email = validatedRequest.Email.Trim().ToLowerInvariant();
+            logger.LogInformation(
+                "Admin user create requested actorUserId={ActorUserId} email={Email} mode={UserMode} organizationId={OrganizationId} branchId={BranchId} workspaceName={WorkspaceName} workspaceType={WorkspaceType}",
+                actorUserId,
+                email,
+                mode,
+                mode is HexaTrack.Api.Domain.UserMode.Individual or HexaTrack.Api.Domain.UserMode.SuperAdmin ? null : validatedRequest.OrganizationId,
+                mode is HexaTrack.Api.Domain.UserMode.Individual or HexaTrack.Api.Domain.UserMode.SuperAdmin ? null : validatedRequest.BranchId,
+                workspaceName,
+                mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceType.Personal : validatedRequest.WorkspaceType);
 
             if (await db.Users.AnyAsync(x => x.Email == email, ct))
             {
+                logger.LogWarning("Admin user create validation failed actorUserId={ActorUserId} email={Email} reason=email_registered", actorUserId, email);
                 throw new InvalidOperationException("Email is already registered.");
             }
 
@@ -144,22 +162,76 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
 
             db.Users.Add(user);
             WorkspaceRole membershipRole = validatedRequest.InitialWorkspaceRole ?? WorkspaceRole.Owner;
-            AddStarterWorkspaceWithSeed(db, user.Id, workspaceName, validatedRequest.WorkspaceType, currency, membershipRole);
+            WorkspaceSeedResult seed = AddStarterWorkspaceWithSeed(
+                db,
+                user.Id,
+                workspaceName,
+                mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceType.Personal : validatedRequest.WorkspaceType,
+                mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceMode.Individual : WorkspaceMode.Organization,
+                currency,
+                membershipRole);
+
+            logger.LogInformation(
+                "Admin user create provisioning prepared userId={UserId} workspaceId={WorkspaceId} workspaceRole={WorkspaceRole} featureFlags={FeatureFlagCount} accounts={AccountCount} categories={CategoryCount}",
+                user.Id,
+                seed.WorkspaceId,
+                membershipRole,
+                seed.FeatureFlagCount,
+                seed.AccountCount,
+                seed.CategoryCount);
+
             await db.SaveChangesAsync(ct);
+            logger.LogInformation(
+                "Admin user create database save completed userId={UserId} workspaceId={WorkspaceId} membershipId={MembershipId}",
+                user.Id,
+                seed.WorkspaceId,
+                seed.MembershipId);
 
             string meta = JsonSerializer.Serialize(new
             {
                 email = user.Email,
                 workspace = workspaceName,
+                workspaceId = seed.WorkspaceId,
                 isSuperAdmin = user.IsSuperAdmin,
                 userMode = mode.ToString(),
                 currency,
                 workspaceRole = membershipRole.ToString(),
             });
             await audit.LogAsync(actorUserId, "user.create", "User", user.Id, meta, ct);
+            logger.LogInformation("Admin user create transaction ready to commit userId={UserId} workspaceId={WorkspaceId}", user.Id, seed.WorkspaceId);
 
-            return new AdminCreateUserResponse(user.Id, user.Email, user.DisplayName, user.IsSuperAdmin, validatedRequest.Password);
-        }, cancellationToken);
+            return new AdminCreateUserResponse(true, user.Id, user.Id, seed.WorkspaceId, user.Email, user.DisplayName, user.IsSuperAdmin, validatedRequest.Password, validatedRequest.Password);
+            }, cancellationToken);
+            logger.LogInformation(
+                "Admin user create transaction committed userId={UserId} workspaceId={WorkspaceId} email={Email}",
+                response.UserId,
+                response.WorkspaceId,
+                response.Email);
+            return response;
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Admin user create failed validation actorUserId={ActorUserId} email={Email} organizationId={OrganizationId} branchId={BranchId}",
+                actorUserId,
+                request.Email,
+                request.OrganizationId,
+                request.BranchId);
+            throw;
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(
+                ex,
+                "Admin user create failed during EF save actorUserId={ActorUserId} email={Email} organizationId={OrganizationId} branchId={BranchId}",
+                actorUserId,
+                request.Email,
+                request.OrganizationId,
+                request.BranchId);
+            throw;
+        }
+    }
 
     public async Task SetSuperAdminAsync(Guid targetUserId, bool isSuperAdmin, Guid actorUserId, CancellationToken cancellationToken)
     {
@@ -350,11 +422,12 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
     }
 
     /// <summary>Adds default workspace, owner membership, starter accounts and categories. Caller must call <c>SaveChangesAsync</c>.</summary>
-    private static void AddStarterWorkspaceWithSeed(
+    private static WorkspaceSeedResult AddStarterWorkspaceWithSeed(
         HexaTrackDbContext dbContext,
         Guid userId,
         string workspaceName,
         WorkspaceType workspaceType,
+        WorkspaceMode workspaceMode,
         string currency,
         WorkspaceRole membershipRole)
     {
@@ -363,6 +436,7 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
             OwnerUserId = userId,
             Name = workspaceName,
             Type = workspaceType,
+            Mode = workspaceMode,
             Currency = currency,
             IsDefault = true,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -371,12 +445,13 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
 
         dbContext.Workspaces.Add(workspace);
 
-        dbContext.WorkspaceMembers.Add(new WorkspaceMember
+        var member = new WorkspaceMember
         {
             WorkspaceId = workspace.Id,
             UserId = userId,
             Role = membershipRole,
-        });
+        };
+        dbContext.WorkspaceMembers.Add(member);
 
         Guid workspaceId = workspace.Id;
 
@@ -429,7 +504,11 @@ public sealed class AdminUsersService(HexaTrackDbContext db, IAdminAuditService 
         dbContext.Categories.AddRange([restaurant, cafe, groceries, fuel, taxi, bus, electricity, internet]);
 
         dbContext.Accounts.AddRange(starterAccounts);
+
+        return new WorkspaceSeedResult(workspace.Id, member.Id, defaultFlags.Length, starterAccounts.Length, 18);
     }
+
+    private sealed record WorkspaceSeedResult(Guid WorkspaceId, Guid MembershipId, int FeatureFlagCount, int AccountCount, int CategoryCount);
 
     private async Task RemoveUserRelatedDataAsync(Guid userId, CancellationToken cancellationToken)
     {

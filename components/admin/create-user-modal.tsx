@@ -22,6 +22,7 @@ type FormErrors = Partial<Record<keyof z.infer<typeof createUserSchema>, string>
 
 interface SuccessData {
   id: string;
+  workspaceId?: string;
   email: string;
   fullName: string;
   passwordText: string;
@@ -42,6 +43,9 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
   const [organizations, setOrganizations] = useState<LightOrganization[]>([]);
   const [branches, setBranches] = useState<LightBranch[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [workspaceName, setWorkspaceName] = useState<string>('');
   const [loadingLookup, setLoadingLookup] = useState(false);
 
   useEffect(() => {
@@ -52,6 +56,9 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
     setApiError(null);
     setSelectedRole('Owner');
     setSelectedOrgId('');
+    setSelectedBranchId('');
+    setSelectedDepartment('');
+    setWorkspaceName('');
     setSuccessData(null);
     setCopiedField(null);
     
@@ -79,7 +86,34 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
 
   if (!open) return null;
 
-  const handleNext = () => setStep(2);
+  const handleRoleSelect = (role: typeof selectedRole) => {
+    setSelectedRole(role);
+    if (role === 'Individual' || role === 'SuperAdmin') {
+      setSelectedOrgId('');
+      setSelectedBranchId('');
+      setSelectedDepartment('');
+    } else if (role === 'Owner') {
+      setSelectedBranchId('');
+      setSelectedDepartment('');
+    }
+  };
+
+  const handleNext = () => {
+    const nextErrors: FormErrors = {};
+    if (!workspaceName.trim()) {
+      nextErrors.workspaceName = 'Workspace name is required.';
+    }
+    if (selectedRole !== 'Individual' && selectedRole !== 'SuperAdmin' && !selectedOrgId) {
+      nextErrors.orgId = 'Organization is required.';
+    }
+    if (selectedRole === 'BranchManager' && !selectedBranchId) {
+      nextErrors.branchId = 'Branch is required.';
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) {
+      setStep(2);
+    }
+  };
   const handleBack = () => setStep(1);
 
   const handleCopy = (text: string, label: string) => {
@@ -91,11 +125,20 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const rawData = Object.fromEntries(fd.entries());
+    const rawData: Record<string, FormDataEntryValue | string | null> = {
+      ...Object.fromEntries(fd.entries()),
+      targetRole: selectedRole,
+      orgId: selectedRole !== 'Individual' && selectedRole !== 'SuperAdmin' ? selectedOrgId : null,
+      branchId: selectedRole === 'Staff' || selectedRole === 'BranchManager' ? selectedBranchId || null : null,
+      department: selectedRole === 'Staff' || selectedRole === 'BranchManager' ? selectedDepartment || null : null,
+      workspaceName,
+    };
     
     // Auto-populate workspace name if empty for standalone or admin modes
     if (!rawData.workspaceName && rawData.fullName) {
-      rawData.workspaceName = `${rawData.fullName}'s Ledger`;
+      rawData.workspaceName = selectedRole === 'Individual'
+        ? `${rawData.fullName} Workspace`
+        : `${rawData.fullName}'s Ledger`;
     }
 
     const parsed = createUserSchema.safeParse(rawData);
@@ -120,22 +163,23 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
         password: parsed.data.password,
         fullName: parsed.data.fullName,
         workspaceName: parsed.data.workspaceName,
-        workspaceType: 'Business' as const,
+        workspaceType: role === 'Individual' ? 'Personal' as const : 'Business' as const,
         currency: 'USD' as const,
         isSuperAdmin,
         initialWorkspaceRole: 'Owner' as const,
-        organizationId,
-        branchId,
-        organizationRole,
-        department,
+        ...(organizationId ? { organizationId } : {}),
+        ...(branchId ? { branchId } : {}),
+        ...(organizationRole ? { organizationRole } : {}),
+        ...(department ? { department } : {}),
       };
       
       const created = await hexaTrackApi.admin.createUser(finalBody);
       setSuccessData({
-        id: created.id,
+        id: created.userId ?? created.id,
+        workspaceId: created.workspaceId,
         email: created.email,
         fullName: created.displayName,
-        passwordText: parsed.data.password,
+        passwordText: created.temporaryPassword ?? created.plaintextPassword ?? parsed.data.password,
         role: role,
         workspaceName: parsed.data.workspaceName,
       });
@@ -210,6 +254,13 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                   <span className="text-sm font-medium text-[#E1E2EC]">{successData.fullName}</span>
                 </div>
 
+                {successData.workspaceId && (
+                  <div className="border-t border-white/[0.04] pt-3 flex flex-col gap-1">
+                    <span className="text-[10px] text-[#8B9BB4] font-bold uppercase tracking-wider">Workspace</span>
+                    <span className="text-sm font-medium text-[#E1E2EC]">{successData.workspaceName}</span>
+                  </div>
+                )}
+
                 <div className="border-t border-white/[0.04] pt-3 flex flex-col gap-1.5 relative">
                   <span className="text-[10px] text-[#8B9BB4] font-bold uppercase tracking-wider">Email Address</span>
                   <div className="flex justify-between items-center bg-white/[0.02] border border-white/[0.04] px-3 py-2 rounded-xl">
@@ -258,6 +309,19 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                   )}
                 </button>
 
+                {successData.workspaceId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = `/super-admin/workspaces?workspaceId=${encodeURIComponent(successData.workspaceId!)}`;
+                    }}
+                    className="h-12 w-full bg-[#4F8CFF]/10 border border-[#4F8CFF]/25 hover:bg-[#4F8CFF]/15 text-[#E1E2EC] rounded-2xl font-bold text-sm transition flex items-center justify-center gap-2"
+                  >
+                    <ArrowRight size={16} />
+                    Open Workspace
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleSuccessClose}
@@ -288,7 +352,7 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                             <button
                               key={r}
                               type="button"
-                              onClick={() => setSelectedRole(r)}
+                              onClick={() => handleRoleSelect(r)}
                               className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1.5 text-center shrink-0 ${
                                 selectedRole === r 
                                   ? 'bg-[#4F8CFF]/10 border-[#4F8CFF]/40 text-[#E1E2EC] shadow-md' 
@@ -325,7 +389,10 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                                   name="orgId" 
                                   value={selectedOrgId}
                                   required
-                                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                                  onChange={(e) => {
+                                    setSelectedOrgId(e.target.value);
+                                    setSelectedBranchId('');
+                                  }}
                                   className="w-full h-11 pl-9 pr-8 bg-[#0B1015] border border-white/[0.05] rounded-xl text-sm font-bold text-[#E1E2EC] outline-none appearance-none cursor-pointer focus:border-[#4F8CFF]/40"
                                >
                                   <option value="">Select Organization (Required)</option>
@@ -339,7 +406,9 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                                     <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-[#C2C6D6]/40 h-4 w-4" />
                                     <select 
                                       name="branchId" 
+                                      value={selectedBranchId}
                                       required={selectedRole === 'BranchManager'}
+                                      onChange={(e) => setSelectedBranchId(e.target.value)}
                                       className="w-full h-11 pl-9 pr-8 bg-[#0B1015] border border-white/[0.05] rounded-xl text-xs font-medium text-[#E1E2EC] outline-none appearance-none cursor-pointer focus:border-[#4F8CFF]/40"
                                     >
                                        <option value="">{selectedRole === 'BranchManager' ? 'Select Branch (Req.)' : 'Default Branch'}</option>
@@ -348,7 +417,7 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                                  </div>
                                  <div className="relative">
                                     <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-[#C2C6D6]/40 h-4 w-4" />
-                                    <select name="department" className="w-full h-11 pl-9 pr-8 bg-[#0B1015] border border-white/[0.05] rounded-xl text-xs font-medium text-[#E1E2EC] outline-none appearance-none cursor-pointer focus:border-[#4F8CFF]/40">
+                                    <select name="department" value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} className="w-full h-11 pl-9 pr-8 bg-[#0B1015] border border-white/[0.05] rounded-xl text-xs font-medium text-[#E1E2EC] outline-none appearance-none cursor-pointer focus:border-[#4F8CFF]/40">
                                        <option value="">General Dept.</option>
                                        <option value="Finance">Finance</option>
                                        <option value="Operations">Operations</option>
@@ -368,10 +437,15 @@ export function CreateUserModal({ open, onOpenChange, onCreated }: { open: boole
                         </label>
                         <input 
                           name="workspaceName"
-                          placeholder={selectedRole === 'SuperAdmin' ? 'e.g. Master Admin Ledger' : 'e.g. Primary Income Ledger'}
+                          value={workspaceName}
+                          onChange={(e) => setWorkspaceName(e.target.value)}
+                          placeholder={selectedRole === 'Individual' ? 'e.g. Surag Workspace' : selectedRole === 'SuperAdmin' ? 'e.g. Master Admin Ledger' : 'e.g. Primary Income Ledger'}
                           required
                           className="w-full h-11 px-4 bg-[#0B1015] border border-white/[0.05] rounded-xl text-sm font-medium text-[#E1E2EC] outline-none focus:border-[#4F8CFF]/40"
                         />
+                        {errors.workspaceName && <p className="mt-1 text-[11px] font-bold text-red-400">{errors.workspaceName}</p>}
+                        {errors.orgId && <p className="mt-1 text-[11px] font-bold text-red-400">{errors.orgId}</p>}
+                        {errors.branchId && <p className="mt-1 text-[11px] font-bold text-red-400">{errors.branchId}</p>}
                       </div>
 
                       <div className="pt-4 border-t border-white/[0.04]">

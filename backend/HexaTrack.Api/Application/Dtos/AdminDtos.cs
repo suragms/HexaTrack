@@ -36,7 +36,16 @@ public sealed record AdminCreateUserRequest(
     Guid? BranchId = null,
     string? OrganizationRole = null,
     string? Department = null);
-public sealed record AdminCreateUserResponse(Guid Id, string Email, string DisplayName, bool IsSuperAdmin, string? PlaintextPassword = null);
+public sealed record AdminCreateUserResponse(
+    bool Success,
+    Guid Id,
+    Guid UserId,
+    Guid WorkspaceId,
+    string Email,
+    string DisplayName,
+    bool IsSuperAdmin,
+    string? TemporaryPassword = null,
+    string? PlaintextPassword = null);
 public sealed record SetSuperAdminRequest(bool IsSuperAdmin);
 public sealed record SetUserLockedRequest(bool Locked);
 public sealed record AdminAuditLogDto(
