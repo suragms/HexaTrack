@@ -4,8 +4,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { hexaTrackApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import type { AdminCreateWorkspaceRequest, AdminWorkspaceListItem, WorkspaceType } from '@/lib/types';
-import { Layers, Search, ChevronLeft, ChevronRight, Plus, Wrench, X, RefreshCw } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Layers, Search, ChevronLeft, ChevronRight, Plus, Wrench, X, RefreshCw, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { showToast } from '@/components/ui/toast';
 
 const MODE_COLORS: Record<string, string> = { Personal: '#10B981', Business: '#0D9488', Family: '#F59E0B' };
 
@@ -18,6 +19,7 @@ export default function WorkspacesPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [deletingWorkspace, setDeletingWorkspace] = useState<AdminWorkspaceListItem | null>(null);
   const pageSize = 20;
 
   const fetch = useCallback(async () => {
@@ -37,7 +39,10 @@ export default function WorkspacesPage() {
     setActionId(workspaceId);
     try {
       await hexaTrackApi.admin.repairWorkspaceAccess(workspaceId);
+      showToast('success', 'Workspace access repaired successfully.');
       await fetch();
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to repair workspace access.');
     } finally {
       setActionId(null);
     }
@@ -65,7 +70,7 @@ export default function WorkspacesPage() {
       </div>
 
       <div className="rounded-2xl border border-white/[0.06] bg-[#0E1425] overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_120px] gap-4 px-5 py-3 border-b border-white/[0.04] text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+        <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_180px] gap-4 px-5 py-3 border-b border-white/[0.04] text-[10px] font-bold text-gray-500 uppercase tracking-wider">
           <span>Workspace</span><span>Type</span><span>Owner</span><span>Members</span><span>Plan</span><span>Controls</span>
         </div>
         {loading ? (
@@ -75,7 +80,7 @@ export default function WorkspacesPage() {
         ) : (
           <div className="divide-y divide-white/[0.04]">
             {workspaces.map((ws, i) => (
-              <motion.div key={ws.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }} className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_120px] gap-2 lg:gap-4 items-center px-5 py-4 hover:bg-white/[0.02] transition-colors">
+              <motion.div key={ws.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }} className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_180px] gap-2 lg:gap-4 items-center px-5 py-4 hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${MODE_COLORS[ws.type] ?? '#6B7280'}15` }}>
                     <Layers size={16} style={{ color: MODE_COLORS[ws.type] ?? '#6B7280' }} />
@@ -86,14 +91,24 @@ export default function WorkspacesPage() {
                 <p className="text-xs text-gray-400 truncate">{ws.ownerEmail}</p>
                 <p className="text-sm text-gray-300">{ws.memberCount}</p>
                 <span className="text-xs font-medium text-gray-400">{ws.ownerSubscriptionPlan ?? 'Free'}</span>
-                <button
-                  onClick={() => repairAccess(ws.id)}
-                  disabled={actionId === ws.id}
-                  className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-60"
-                >
-                  {actionId === ws.id ? <RefreshCw size={12} className="animate-spin" /> : <Wrench size={12} />}
-                  Repair
-                </button>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => repairAccess(ws.id)}
+                    disabled={actionId === ws.id}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-60"
+                  >
+                    {actionId === ws.id ? <RefreshCw size={12} className="animate-spin" /> : <Wrench size={12} />}
+                    Repair
+                  </button>
+                  <button
+                    onClick={() => setDeletingWorkspace(ws)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-400 transition-colors hover:bg-red-500/10"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -109,6 +124,7 @@ export default function WorkspacesPage() {
           </div>
         )}
       </div>
+
       {showCreate && (
         <CreateWorkspaceModal
           onClose={() => setShowCreate(false)}
@@ -118,6 +134,19 @@ export default function WorkspacesPage() {
           }}
         />
       )}
+
+      <AnimatePresence>
+        {deletingWorkspace && (
+          <DeleteWorkspaceModal
+            workspace={deletingWorkspace}
+            onClose={() => setDeletingWorkspace(null)}
+            onDeleted={() => {
+              setDeletingWorkspace(null);
+              fetch();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -146,6 +175,7 @@ function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onC
         name: form.name.trim(),
         currency: form.currency.trim().toUpperCase(),
       });
+      showToast('success', `Workspace "${form.name}" created successfully.`);
       onCreated();
     } catch (e: any) {
       setError(e.message ?? 'Workspace creation failed.');
@@ -215,5 +245,116 @@ function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onC
         </div>
       </form>
     </div>
+  );
+}
+
+function DeleteWorkspaceModal({
+  workspace,
+  onClose,
+  onDeleted,
+}: {
+  workspace: AdminWorkspaceListItem;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirmName, setConfirmName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmName !== workspace.name) return;
+
+    setSubmitting(true);
+    setError('');
+    try {
+      await hexaTrackApi.admin.deleteWorkspace(workspace.id);
+      showToast('success', `Workspace "${workspace.name}" deleted successfully!`);
+      onDeleted();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to delete workspace.');
+      showToast('error', err.message ?? 'Failed to delete workspace.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-red-500/20 bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-red-400">Delete Workspace</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Destructive and irreversible operation</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleDelete}>
+          <div className="px-6 py-5 space-y-4">
+            <div className="rounded-xl bg-red-500/5 border border-red-500/10 p-3.5 text-xs text-red-400/90 leading-relaxed">
+              <span className="font-bold text-red-400 block mb-1">WARNING: Cascade Data Loss</span>
+              This will permanently delete the workspace <strong className="text-white">"{workspace.name}"</strong> and all associated data, including:
+              <ul className="list-disc list-inside mt-1.5 space-y-0.5 text-red-400/80 font-medium">
+                <li>Transactions & Receipts</li>
+                <li>Accounts & Categories</li>
+                <li>Feature toggles & Invites</li>
+                <li>All member roles & assignments</li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-gray-400 mb-2">
+                Please type <strong className="text-white">{workspace.name}</strong> to confirm:
+              </p>
+              <input
+                type="text"
+                required
+                value={confirmName}
+                onChange={(e) => setConfirmName(e.target.value)}
+                placeholder="Enter workspace name"
+                className="w-full h-10 px-3.5 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-red-500/30 font-semibold"
+              />
+            </div>
+
+            {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+          </div>
+
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || confirmName !== workspace.name}
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-xs font-bold text-white transition-all disabled:opacity-30 disabled:hover:bg-red-600 flex items-center gap-2"
+            >
+              {submitting && <RefreshCw size={12} className="animate-spin" />}
+              Delete Workspace
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 }

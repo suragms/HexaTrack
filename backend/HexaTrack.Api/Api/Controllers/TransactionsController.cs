@@ -19,8 +19,18 @@ public sealed class TransactionsController(ITransactionService transactionServic
         => transactionService.SearchAsync(request, cancellationToken);
 
     [HttpPost]
-    public Task<TransactionDto> Create(CreateTransactionRequest request, CancellationToken cancellationToken)
-        => transactionService.CreateAsync(request, cancellationToken);
+    public async Task<ActionResult<TransactionDto>> Create(CreateTransactionRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await transactionService.CreateAsync(request, cancellationToken);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
     [HttpPut("{id:guid}")]
     public Task<TransactionDto> Update(Guid id, UpdateTransactionRequest request, CancellationToken cancellationToken)

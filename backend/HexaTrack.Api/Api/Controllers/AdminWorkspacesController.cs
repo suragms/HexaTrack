@@ -40,4 +40,11 @@ public sealed class AdminWorkspacesController(IAdminWorkspacesService workspaces
     [HttpDelete("{id:guid}/members/{userId:guid}")]
     public Task RemoveUser(Guid id, Guid userId, CancellationToken cancellationToken)
         => workspaces.RemoveUserAsync(id, userId, currentUser.UserId, cancellationToken);
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await workspaces.DeleteWorkspaceAsync(id, currentUser.UserId, cancellationToken);
+        return NoContent();
+    }
 }

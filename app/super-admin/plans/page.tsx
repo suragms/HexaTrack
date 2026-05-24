@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { hexaTrackApi } from '@/lib/api';
 import type { PricingConfiguration } from '@/lib/types';
 import { useAuthStore } from '@/store/auth-store';
+import { showToast } from '@/components/ui/toast';
 
 const PLAN_ICONS: Record<string, any> = {
   Free: Star,
@@ -27,7 +28,6 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [editingPlan, setEditingPlan] = useState<PricingConfiguration | null>(null);
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form State
   const [planName, setPlanName] = useState('');
@@ -77,8 +77,7 @@ export default function PlansPage() {
 
     setSaving(true);
     try {
-      const updated = await hexaTrackApi.admin.pricing.upsert({
-        id: editingPlan.id,
+      const updated = await hexaTrackApi.admin.pricing.update(editingPlan.id, {
         planName,
         monthlyPrice,
         yearlyPrice,
@@ -91,11 +90,11 @@ export default function PlansPage() {
       });
 
       setPlans(plans.map((p) => (p.id === editingPlan.id ? updated : p)));
-      setSuccessMsg(`Successfully updated ${planName} plan!`);
-      setTimeout(() => setSuccessMsg(null), 3000);
+      showToast('success', `Plan "${planName}" updated successfully!`);
       setEditingPlan(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save plan:', err);
+      showToast('error', err?.message || 'Failed to save plan configuration.');
     } finally {
       setSaving(false);
     }
@@ -117,17 +116,6 @@ export default function PlansPage() {
           Refresh Plans
         </button>
       </div>
-
-      {successMsg && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs"
-        >
-          <CheckCircle2 size={16} />
-          <span>{successMsg}</span>
-        </motion.div>
-      )}
 
       {loading ? (
         <div className="py-24 text-center">
@@ -181,7 +169,7 @@ export default function PlansPage() {
                         {plan.currency === 'USD' ? '$' : plan.currency === 'INR' ? '₹' : plan.currency}
                         {plan.monthlyPrice}
                       </span>
-                      <span className="text-[10px] text-gray-500 font-medium">/ month</span>
+                      <span className="text-[10px] text-gray-500 font-medium">/mo</span>
                     </div>
                     <div className="flex items-baseline gap-1 mt-0.5 text-xs text-gray-400">
                       <span>Annual:</span>
@@ -269,7 +257,9 @@ export default function PlansPage() {
                     <div>
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Monthly Price</label>
                       <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                          {currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency}
+                        </span>
                         <input
                           type="number"
                           step="0.01"
@@ -283,7 +273,9 @@ export default function PlansPage() {
                     <div>
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Yearly Price</label>
                       <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                          {currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency}
+                        </span>
                         <input
                           type="number"
                           step="0.01"

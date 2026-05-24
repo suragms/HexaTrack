@@ -225,15 +225,27 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
     }
 
     public Task<WorkspaceDto> CreateAsync(CreateWorkspaceRequest request, CancellationToken cancellationToken)
-        => unitOfWork.ExecuteInTransactionAsync(ct =>
+        => unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
             Guid uid = currentUser.UserId;
             string currency = request.Currency.Trim().ToUpperInvariant();
+
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == uid, ct);
+            Guid? organizationId = user?.OrganizationId;
+            Guid? branchId = user?.BranchId;
+            WorkspaceMode mode = WorkspaceMode.Individual;
+            if (request.Type == WorkspaceType.Business)
+            {
+                mode = branchId.HasValue ? WorkspaceMode.Branch : (organizationId.HasValue ? WorkspaceMode.Organization : WorkspaceMode.Individual);
+            }
+
             var workspace = new Workspace
             {
                 OwnerUserId = uid,
                 Name = request.Name.Trim(),
                 Type = request.Type,
+                Mode = mode,
+                OrganizationId = organizationId,
                 Currency = currency,
                 IsDefault = false,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -248,7 +260,10 @@ public sealed class WorkspaceService(HexaTrackDbContext db, ICurrentUser current
                 Role = WorkspaceRole.Owner
             });
 
-            return Task.FromResult(new WorkspaceDto(workspace.Id, workspace.Name, workspace.Type, workspace.Currency, workspace.IsDefault));
+            await EnsureStarterFinanceDataAsync(workspace.Id, uid, organizationId, branchId, currency, ct);
+            EnsureDefaultFeatureFlags(workspace.Id);
+
+            return new WorkspaceDto(workspace.Id, workspace.Name, workspace.Type, workspace.Currency, workspace.IsDefault);
         }, cancellationToken);
 
     public Task<WorkspaceDto> UpdateAsync(Guid id, UpdateWorkspaceRequest request, CancellationToken cancellationToken)

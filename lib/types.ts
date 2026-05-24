@@ -67,6 +67,7 @@ export type AdminUserListItem = {
   organizationName?: string | null;
   branchId?: string | null;
   branchName?: string | null;
+  organizationId?: string | null;
 };
 
 export type AdminUserListResult = {

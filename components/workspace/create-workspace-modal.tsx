@@ -60,69 +60,71 @@ export function CreateWorkspaceModal({ open, onOpenChange, onCreated }: CreateWo
 
   return (
     <BottomSheet open={open} onClose={() => onOpenChange(false)} labelledBy="create-workspace-title">
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-4 pt-3">
-        <div>
-          <p className="eyebrow">Workspace</p>
-          <h2 id="create-workspace-title" className="text-xl font-bold text-[#F5F7FA]">
-            New workspace
-          </h2>
+      <div className="fintech-clean flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-4 pt-3">
+          <div>
+            <p className="eyebrow">Workspace</p>
+            <h2 id="create-workspace-title" className="text-xl font-bold text-[#F5F7FA]">
+              New workspace
+            </h2>
+          </div>
+          <button aria-label="Close" className="icon-button" onClick={() => onOpenChange(false)} type="button">
+            <X size={20} />
+          </button>
         </div>
-        <button aria-label="Close" className="icon-button" onClick={() => onOpenChange(false)} type="button">
-          <X size={20} />
-        </button>
+
+        <form className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onSubmit={(e) => void handleSubmit(e)}>
+          <label className="block text-sm font-medium text-[#F5F7FA]">
+            Name
+            <input
+              autoComplete="organization"
+              className="field mt-2 text-base animate-none"
+              defaultValue=""
+              name="name"
+              placeholder="e.g. Freelance"
+              type="text"
+            />
+            {errors.name ? <p className="mt-1 text-sm text-[#FF5C75]">{errors.name}</p> : null}
+          </label>
+
+          <label className="block text-sm font-medium text-[#F5F7FA]">
+            Type
+            <select
+              className="field mt-2 text-base animate-none"
+              defaultValue="Personal"
+              name="type"
+            >
+              <option value="Personal">Personal</option>
+              <option value="Business">Business</option>
+              <option value="Family">Family</option>
+            </select>
+            {errors.type ? <p className="mt-1 text-sm text-[#FF5C75]">{errors.type}</p> : null}
+          </label>
+
+          <label className="block text-sm font-medium text-[#F5F7FA]">
+            Currency
+            <select
+              className="field mt-2 text-base animate-none"
+              defaultValue="USD"
+              name="currency"
+            >
+              <option value="USD">USD</option>
+              <option value="INR">INR</option>
+              <option value="EUR">EUR</option>
+              <option value="AED">AED</option>
+            </select>
+            {errors.currency ? <p className="mt-1 text-sm text-[#FF5C75]">{errors.currency}</p> : null}
+          </label>
+
+          <button
+            className="primary-button mt-2 w-full min-h-[44px]"
+            disabled={submitting}
+            type="submit"
+          >
+            {submitting ? 'Creating…' : 'Create workspace'}
+          </button>
+        </form>
       </div>
-
-      <form className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onSubmit={(e) => void handleSubmit(e)}>
-        <label className="block text-sm font-medium text-[#F5F7FA]">
-          Name
-          <input
-            autoComplete="organization"
-            className="field mt-2 text-base"
-            defaultValue=""
-            name="name"
-            placeholder="e.g. Freelance"
-            type="text"
-          />
-          {errors.name ? <p className="mt-1 text-sm text-[#FF5C75]">{errors.name}</p> : null}
-        </label>
-
-        <label className="block text-sm font-medium text-[#F5F7FA]">
-          Type
-          <select
-            className="field mt-2 text-base"
-            defaultValue="Personal"
-            name="type"
-          >
-            <option value="Personal">Personal</option>
-            <option value="Business">Business</option>
-            <option value="Family">Family</option>
-          </select>
-          {errors.type ? <p className="mt-1 text-sm text-[#FF5C75]">{errors.type}</p> : null}
-        </label>
-
-        <label className="block text-sm font-medium text-[#F5F7FA]">
-          Currency
-          <select
-            className="field mt-2 text-base"
-            defaultValue="USD"
-            name="currency"
-          >
-            <option value="USD">USD</option>
-            <option value="INR">INR</option>
-            <option value="EUR">EUR</option>
-            <option value="AED">AED</option>
-          </select>
-          {errors.currency ? <p className="mt-1 text-sm text-[#FF5C75]">{errors.currency}</p> : null}
-        </label>
-
-        <button
-          className="primary-button mt-2 w-full min-h-[44px]"
-          disabled={submitting}
-          type="submit"
-        >
-          {submitting ? 'Creating…' : 'Create workspace'}
-        </button>
-      </form>
     </BottomSheet>
   );
 }

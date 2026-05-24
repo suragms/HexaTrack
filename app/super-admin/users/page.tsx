@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { hexaTrackApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
-import type { AdminUserListItem, AdminCreateUserRequest, WorkspaceType, LightOrganization, LightBranch } from '@/lib/types';
-import { Users, Plus, Search, Shield, Lock, Unlock, Trash2, X, ChevronLeft, ChevronRight, MoreVertical, Crown, Copy, Check, Sparkles, Building, Landmark, UserCheck, RefreshCw } from 'lucide-react';
+import type { AdminUserListItem, AdminCreateUserRequest, WorkspaceType, LightOrganization, LightBranch, SubscriptionPlan, UserFeatureToggleDto, OrganizationFeatureToggleDto, BranchFeatureToggleDto } from '@/lib/types';
+import { Users, Plus, Search, Shield, Lock, Unlock, Trash2, X, ChevronLeft, ChevronRight, MoreVertical, Crown, Copy, Check, Sparkles, Building, Landmark, UserCheck, RefreshCw, Key, CreditCard, Flag, GitMerge, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UsersPage() {
@@ -16,13 +16,31 @@ export default function UsersPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [actionUser, setActionUser] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'individual' | 'org' | 'branch'>('all');
+  
+  const [resetPasswordUser, setResetPasswordUser] = useState<AdminUserListItem | null>(null);
+  const [editSubscriptionUser, setEditSubscriptionUser] = useState<AdminUserListItem | null>(null);
+  const [userFlagsUser, setUserFlagsUser] = useState<AdminUserListItem | null>(null);
+  const [orgFlagsUser, setOrgFlagsUser] = useState<AdminUserListItem | null>(null);
+  const [branchFlagsUser, setBranchFlagsUser] = useState<AdminUserListItem | null>(null);
+  const [reassignBranchUser, setReassignBranchUser] = useState<AdminUserListItem | null>(null);
+
   const pageSize = 20;
 
   const fetchUsers = useCallback(async () => {
     if (!accessToken) return;
     setLoading(true);
     try {
-      const result = await hexaTrackApi.admin.users(search || undefined, page, pageSize);
+      const filters: {
+        organizationUsersOnly?: boolean;
+        individualUsersOnly?: boolean;
+        branchUsersOnly?: boolean;
+      } = {};
+      if (activeTab === 'individual') filters.individualUsersOnly = true;
+      if (activeTab === 'org') filters.organizationUsersOnly = true;
+      if (activeTab === 'branch') filters.branchUsersOnly = true;
+
+      const result = await hexaTrackApi.admin.users(search || undefined, page, pageSize, filters);
       setUsers(result.items);
       setTotalCount(result.totalCount);
     } catch (err) {
@@ -30,7 +48,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, search, page]);
+  }, [accessToken, search, page, activeTab]);
 
   useEffect(() => {
     fetchUsers();
@@ -96,6 +114,31 @@ export default function UsersPage() {
           placeholder="Search accounts by name, email, department or organization..."
           className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/[0.06] bg-[#0E1425] text-xs text-white placeholder:text-gray-600 outline-none focus:border-violet-500/30 transition-colors"
         />
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex border-b border-white/[0.06] p-1 gap-1 bg-[#101524]/60 backdrop-blur-md rounded-xl border border-white/[0.04] max-w-lg">
+        {([
+          { id: 'all', label: 'All Users' },
+          { id: 'individual', label: 'Individuals' },
+          { id: 'org', label: 'Org Users' },
+          { id: 'branch', label: 'Branch Users' },
+        ] as const).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id);
+              setPage(1);
+            }}
+            className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all ${
+              activeTab === tab.id
+                ? 'bg-gradient-to-r from-violet-600/90 to-indigo-600/90 text-white shadow-lg shadow-violet-600/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="rounded-2xl border border-white/[0.06] bg-[#0E1425] overflow-hidden">
@@ -201,32 +244,87 @@ export default function UsersPage() {
                       {actionUser === u.id && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setActionUser(null)} />
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="absolute right-0 top-8 w-44 rounded-xl border border-white/[0.08] bg-[#141828] shadow-2xl z-20 py-1.5"
-                          >
-                            <button
-                              onClick={() => handleToggleLock(u)}
-                              className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
-                            >
-                              {u.isLocked ? <><Unlock size={12} /> Unlock Account</> : <><Lock size={12} /> Lock Account</>}
-                            </button>
-                            <button
-                              onClick={() => handleToggleSuperAdmin(u)}
-                              className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-amber-400 hover:bg-white/[0.04]"
-                            >
-                              <Shield size={12} /> {u.isSuperAdmin ? 'Demote Super' : 'Promote Super'}
-                            </button>
-                            <div className="border-t border-white/[0.04] my-1" />
-                            <button
-                              onClick={() => handleDelete(u.id)}
-                              className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-red-400 hover:bg-white/[0.04]"
-                            >
-                              <Trash2 size={12} /> Delete Tenant
-                            </button>
-                          </motion.div>
+                            <div className="absolute right-0 top-8 w-48 rounded-xl border border-white/[0.08] bg-[#141828] shadow-2xl z-20 py-1.5 max-h-[320px] overflow-y-auto">
+                              <button
+                                onClick={() => handleToggleLock(u)}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                              >
+                                {u.isLocked ? <><Unlock size={12} /> Unlock Account</> : <><Lock size={12} /> Lock Account</>}
+                              </button>
+                              <button
+                                onClick={() => handleToggleSuperAdmin(u)}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-amber-400 hover:bg-white/[0.04]"
+                              >
+                                <Shield size={12} /> {u.isSuperAdmin ? 'Demote Super' : 'Promote Super'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setResetPasswordUser(u);
+                                  setActionUser(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                              >
+                                <Key size={12} className="text-violet-400" /> Reset Password
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditSubscriptionUser(u);
+                                  setActionUser(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                              >
+                                <CreditCard size={12} className="text-violet-400" /> Edit Subscription
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setUserFlagsUser(u);
+                                  setActionUser(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                              >
+                                <Flag size={12} className="text-violet-400" /> User Flags
+                              </button>
+                              {u.organizationId && (
+                                <button
+                                  onClick={() => {
+                                    setOrgFlagsUser(u);
+                                    setActionUser(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                                >
+                                  <Building size={12} className="text-violet-400" /> Org Flags
+                                </button>
+                              )}
+                              {u.branchId && (
+                                <button
+                                  onClick={() => {
+                                    setBranchFlagsUser(u);
+                                    setActionUser(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                                >
+                                  <Landmark size={12} className="text-violet-400" /> Branch Flags
+                                </button>
+                              )}
+                              {u.organizationId && u.organizationRole?.toLowerCase() === 'staff' && (
+                                <button
+                                  onClick={() => {
+                                    setReassignBranchUser(u);
+                                    setActionUser(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                                >
+                                  <GitMerge size={12} className="text-violet-400" /> Reassign Branch
+                                </button>
+                              )}
+                              <div className="border-t border-white/[0.04] my-1" />
+                              <button
+                                onClick={() => handleDelete(u.id)}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-red-400 hover:bg-white/[0.04]"
+                              >
+                                <Trash2 size={12} /> Delete Tenant
+                              </button>
+                            </div>
                         </>
                       )}
                     </AnimatePresence>
@@ -263,12 +361,75 @@ export default function UsersPage() {
         )}
       </div>
 
-      <AnimatePresence>
+       <AnimatePresence>
         {showCreate && (
           <CreateUserModal
             onClose={() => setShowCreate(false)}
             onCreated={() => {
               setShowCreate(false);
+              fetchUsers();
+            }}
+          />
+        )}
+        {resetPasswordUser && (
+          <ResetPasswordModal
+            user={resetPasswordUser}
+            onClose={() => setResetPasswordUser(null)}
+            onSuccess={() => {
+              setResetPasswordUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {editSubscriptionUser && (
+          <EditSubscriptionModal
+            user={editSubscriptionUser}
+            onClose={() => setEditSubscriptionUser(null)}
+            onSuccess={() => {
+              setEditSubscriptionUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {userFlagsUser && (
+          <UserFeatureFlagsModal
+            user={userFlagsUser}
+            onClose={() => setUserFlagsUser(null)}
+            onSuccess={() => {
+              setUserFlagsUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {orgFlagsUser && orgFlagsUser.organizationId && (
+          <OrganizationFeatureFlagsModal
+            user={orgFlagsUser}
+            orgId={orgFlagsUser.organizationId}
+            onClose={() => setOrgFlagsUser(null)}
+            onSuccess={() => {
+              setOrgFlagsUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {branchFlagsUser && branchFlagsUser.branchId && (
+          <BranchFeatureFlagsModal
+            user={branchFlagsUser}
+            branchId={branchFlagsUser.branchId}
+            onClose={() => setBranchFlagsUser(null)}
+            onSuccess={() => {
+              setBranchFlagsUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {reassignBranchUser && reassignBranchUser.organizationId && (
+          <BranchReassignModal
+            user={reassignBranchUser}
+            orgId={reassignBranchUser.organizationId}
+            onClose={() => setReassignBranchUser(null)}
+            onSuccess={() => {
+              setReassignBranchUser(null);
               fetchUsers();
             }}
           />
@@ -282,6 +443,9 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; pass: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+  const [showPasswordText, setShowPasswordText] = useState(false);
 
   // Form selections
   const [userMode, setUserMode] = useState<'Individual' | 'Organization' | 'BranchManager'>('Individual');
@@ -307,14 +471,22 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Auto generate password
-  useEffect(() => {
+  const generateRandomPassword = () => {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
     let generated = '';
     for (let i = 0; i < 12; i++) {
       generated += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    setForm((f) => ({ ...f, password: generated }));
+    return generated;
+  };
+
+  const regeneratePassword = () => {
+    setForm((f) => ({ ...f, password: generateRandomPassword() }));
+  };
+
+  // Auto generate password
+  useEffect(() => {
+    setForm((f) => ({ ...f, password: generateRandomPassword() }));
   }, []);
 
   // Fetch Orgs & Branches
@@ -349,7 +521,21 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
     }));
   };
 
-  const handleCopy = () => {
+  const handleCopyEmail = () => {
+    if (!createdCredentials) return;
+    navigator.clipboard.writeText(createdCredentials.email);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+  };
+
+  const handleCopyPassword = () => {
+    if (!createdCredentials) return;
+    navigator.clipboard.writeText(createdCredentials.pass);
+    setCopiedPassword(true);
+    setTimeout(() => setCopiedPassword(false), 2000);
+  };
+
+  const handleCopyAll = () => {
     if (!createdCredentials) return;
     const txt = `HexaTrack Account Details\n-------------------------\nDisplay Name: ${createdCredentials.name}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.pass}`;
     navigator.clipboard.writeText(txt);
@@ -523,6 +709,37 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 </div>
               </div>
 
+              {/* Password Controls */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Password</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showPasswordText ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                      required
+                      className="w-full h-10 pl-3.5 pr-10 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+                      placeholder="Enter password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordText(!showPasswordText)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      {showPasswordText ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={regeneratePassword}
+                    className="px-3 h-10 rounded-xl border border-white/10 hover:bg-white/[0.04] text-[10px] font-bold text-violet-400 hover:text-violet-300 transition-all flex items-center gap-1 shrink-0"
+                  >
+                    <RefreshCw size={12} /> Regenerate
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Initial Workspace Name</label>
@@ -611,23 +828,837 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
               </div>
             </div>
 
-            <div className="flex flex-col gap-2.5 max-w-xs mx-auto pt-2">
+            <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto pt-2">
               <button
-                onClick={handleCopy}
-                className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-600/10"
+                type="button"
+                onClick={handleCopyEmail}
+                className="py-2.5 px-3 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
               >
-                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                {copied ? 'Credentials Copied!' : 'Copy Login Details'}
+                {copiedEmail ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                {copiedEmail ? 'Email Copied' : 'Copy Email'}
               </button>
               <button
+                type="button"
+                onClick={handleCopyPassword}
+                className="py-2.5 px-3 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+              >
+                {copiedPassword ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                {copiedPassword ? 'Pass Copied' : 'Copy Password'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyAll}
+                className="col-span-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-600/10"
+              >
+                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                {copied ? 'All Credentials Copied!' : 'Copy All Details'}
+              </button>
+              <button
+                type="button"
                 onClick={onCreated}
-                className="w-full py-2.5 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-400 hover:text-white transition-all"
+                className="col-span-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-400 hover:text-white transition-all"
               >
                 Done & Return
               </button>
             </div>
           </div>
         )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ResetPasswordModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let generated = '';
+    for (let i = 0; i < 12; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return generated;
+  };
+
+  useEffect(() => {
+    setPassword(generateRandomPassword());
+  }, []);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim()) {
+      setError('Password cannot be empty');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await hexaTrackApi.admin.resetPassword(user.id, password);
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to reset password.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Reset Password</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Generate a secure new credential for {user.displayName}.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {!success ? (
+          <form onSubmit={handleReset}>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">New Password</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showPasswordText ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="w-full h-10 pl-3.5 pr-10 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordText(!showPasswordText)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      {showPasswordText ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPassword(generateRandomPassword())}
+                    className="px-3 h-10 rounded-xl border border-white/10 hover:bg-white/[0.04] text-[10px] font-bold text-violet-400 hover:text-violet-300 transition-all flex items-center gap-1 shrink-0"
+                  >
+                    <RefreshCw size={12} /> Regenerate
+                  </button>
+                </div>
+              </div>
+
+              {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all disabled:opacity-60 flex items-center gap-2"
+              >
+                {submitting && <RefreshCw size={12} className="animate-spin" />}
+                {submitting ? 'Resetting...' : 'Confirm Reset'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="p-6 text-center space-y-5">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
+              <Check size={20} />
+            </div>
+
+            <div>
+              <h2 className="text-sm font-bold text-white">Password Updated Successfully</h2>
+              <p className="text-xs text-gray-500 mt-1">Copy the new password details below.</p>
+            </div>
+
+            <div className="bg-[#141828] border border-white/[0.06] rounded-2xl p-4 text-left max-w-sm mx-auto">
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">New Password</p>
+              <p className="text-xs font-bold text-amber-400 font-mono tracking-wide">{password}</p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 max-w-xs mx-auto pt-2">
+              <button
+                onClick={handleCopy}
+                className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-600/10"
+              >
+                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                {copied ? 'Copied Password!' : 'Copy Password'}
+              </button>
+              <button
+                onClick={onSuccess}
+                className="w-full py-2.5 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-400 hover:text-white transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function EditSubscriptionModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>(user.subscriptionPlan ?? 'Free');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const plans: SubscriptionPlan[] = ['Free', 'Basic', 'Pro', 'ProMax'];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setSubscription(user.id, selectedPlan);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to update subscription tier.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Adjust Subscription Tier</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Modify SaaS permissions and limits for {user.displayName}.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="px-6 py-5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Available Tiers</label>
+              <div className="grid grid-cols-2 gap-3">
+                {plans.map((p) => {
+                  let planDesc = 'Free usage tier';
+                  if (p === 'Basic') planDesc = 'Standard single workspace';
+                  if (p === 'Pro') planDesc = 'Multi-workspace capability';
+                  if (p === 'ProMax') planDesc = 'Enterprise capabilities';
+
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setSelectedPlan(p)}
+                      className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between h-24 ${
+                        selectedPlan === p
+                          ? 'border-violet-500 bg-violet-600/10 shadow-lg shadow-violet-600/5'
+                          : 'border-white/[0.06] bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.02]'
+                      }`}
+                    >
+                      <div>
+                        <p className={`text-xs font-bold ${selectedPlan === p ? 'text-white' : 'text-gray-300'}`}>{p}</p>
+                        <p className="text-[9px] text-gray-500 mt-1 leading-normal">{planDesc}</p>
+                      </div>
+                      {selectedPlan === p && (
+                        <div className="absolute right-2 bottom-2 bg-violet-600 text-white rounded-full p-0.5">
+                          <Check size={10} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+          </div>
+
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all disabled:opacity-60 flex items-center gap-2"
+            >
+              {submitting && <RefreshCw size={12} className="animate-spin" />}
+              Update Tier
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function UserFeatureFlagsModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [flags, setFlags] = useState<UserFeatureToggleDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingFlag, setUpdatingFlag] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const fetchFlags = useCallback(async () => {
+    try {
+      const result = await hexaTrackApi.admin.userFeatureFlags(user.id);
+      setFlags(result);
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load user feature flags.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user.id]);
+
+  useEffect(() => {
+    fetchFlags();
+  }, [fetchFlags]);
+
+  const handleToggle = async (key: string, currentValue: boolean) => {
+    setUpdatingFlag(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setUserFeatureFlag(user.id, key, !currentValue);
+      await fetchFlags();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle feature flag.');
+    } finally {
+      setUpdatingFlag(null);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">User Feature Overrides</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Toggle specific feature overrides for user {user.displayName}.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 max-h-[400px] overflow-y-auto">
+          {loading ? (
+            <div className="py-8 text-center">
+              <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-[10px] text-gray-500 mt-2">Loading feature toggles...</p>
+            </div>
+          ) : flags.length === 0 ? (
+            <div className="py-8 text-center text-xs text-gray-500">
+              No feature flags registered in the system database.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {flags.map((f) => (
+                <div
+                  key={f.featureKey}
+                  className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                    <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                  </div>
+                  <button
+                    disabled={updatingFlag === f.featureKey}
+                    onClick={() => handleToggle(f.featureKey, f.isEnabled)}
+                    className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                      f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                    } ${updatingFlag === f.featureKey ? 'opacity-50' : ''}`}
+                  >
+                    <motion.div
+                      layout
+                      className="w-4 h-4 rounded-full bg-white shadow-md"
+                      animate={{ x: f.isEnabled ? 16 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+        </div>
+
+        <div className="flex justify-end px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+          <button
+            type="button"
+            onClick={onSuccess}
+            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all"
+          >
+            Done
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function OrganizationFeatureFlagsModal({
+  user,
+  orgId,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  orgId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [flags, setFlags] = useState<OrganizationFeatureToggleDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingFlag, setUpdatingFlag] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const fetchFlags = useCallback(async () => {
+    try {
+      const result = await hexaTrackApi.admin.orgFeatureFlags(orgId);
+      setFlags(result);
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load organization feature flags.');
+    } finally {
+      setLoading(false);
+    }
+  }, [orgId]);
+
+  useEffect(() => {
+    fetchFlags();
+  }, [fetchFlags]);
+
+  const handleToggle = async (key: string, currentValue: boolean) => {
+    setUpdatingFlag(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setOrgFeatureFlag(orgId, key, !currentValue);
+      await fetchFlags();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle feature flag.');
+    } finally {
+      setUpdatingFlag(null);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Org Feature Overrides</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Toggle overrides for organization: {user.organizationName || 'Current Org'}.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 max-h-[400px] overflow-y-auto">
+          {loading ? (
+            <div className="py-8 text-center">
+              <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-[10px] text-gray-500 mt-2">Loading feature toggles...</p>
+            </div>
+          ) : flags.length === 0 ? (
+            <div className="py-8 text-center text-xs text-gray-500">
+              No organization feature flags registered in the system database.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {flags.map((f) => (
+                <div
+                  key={f.featureKey}
+                  className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                    <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                  </div>
+                  <button
+                    disabled={updatingFlag === f.featureKey}
+                    onClick={() => handleToggle(f.featureKey, f.isEnabled)}
+                    className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                      f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                    } ${updatingFlag === f.featureKey ? 'opacity-50' : ''}`}
+                  >
+                    <motion.div
+                      layout
+                      className="w-4 h-4 rounded-full bg-white shadow-md"
+                      animate={{ x: f.isEnabled ? 16 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+        </div>
+
+        <div className="flex justify-end px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+          <button
+            type="button"
+            onClick={onSuccess}
+            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all"
+          >
+            Done
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function BranchFeatureFlagsModal({
+  user,
+  branchId,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  branchId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [flags, setFlags] = useState<BranchFeatureToggleDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingFlag, setUpdatingFlag] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const fetchFlags = useCallback(async () => {
+    try {
+      const result = await hexaTrackApi.admin.branchFeatureFlags(branchId);
+      setFlags(result);
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load branch feature flags.');
+    } finally {
+      setLoading(false);
+    }
+  }, [branchId]);
+
+  useEffect(() => {
+    fetchFlags();
+  }, [fetchFlags]);
+
+  const handleToggle = async (key: string, currentValue: boolean) => {
+    setUpdatingFlag(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setBranchFeatureFlag(branchId, key, !currentValue);
+      await fetchFlags();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle feature flag.');
+    } finally {
+      setUpdatingFlag(null);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Branch Feature Overrides</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Toggle overrides for branch: {user.branchName || 'Current Branch'}.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 max-h-[400px] overflow-y-auto">
+          {loading ? (
+            <div className="py-8 text-center">
+              <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-[10px] text-gray-500 mt-2">Loading feature toggles...</p>
+            </div>
+          ) : flags.length === 0 ? (
+            <div className="py-8 text-center text-xs text-gray-500">
+              No branch feature flags registered in the system database.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {flags.map((f) => (
+                <div
+                  key={f.featureKey}
+                  className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                    <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                  </div>
+                  <button
+                    disabled={updatingFlag === f.featureKey}
+                    onClick={() => handleToggle(f.featureKey, f.isEnabled)}
+                    className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                      f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                    } ${updatingFlag === f.featureKey ? 'opacity-50' : ''}`}
+                  >
+                    <motion.div
+                      layout
+                      className="w-4 h-4 rounded-full bg-white shadow-md"
+                      animate={{ x: f.isEnabled ? 16 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+        </div>
+
+        <div className="flex justify-end px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+          <button
+            type="button"
+            onClick={onSuccess}
+            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all"
+          >
+            Done
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function BranchReassignModal({
+  user,
+  orgId,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  orgId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [branches, setBranches] = useState<LightBranch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(user.branchId ?? '');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    hexaTrackApi.admin.allBranches(orgId)
+      .then((res) => {
+        setBranches(res);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        setError(err.message ?? 'Failed to load organization branches.');
+        setLoading(false);
+      });
+  }, [orgId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      await hexaTrackApi.admin.reassignStaffBranch(user.id, {
+        branchId: selectedBranchId || null,
+      });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to reassign branch.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Reassign Staff Branch</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Move manager {user.displayName} to another localized branch ledger.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="px-6 py-5 space-y-4">
+            {loading ? (
+              <div className="py-8 text-center">
+                <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-[10px] text-gray-500 mt-2">Loading organizational branches...</p>
+              </div>
+            ) : (
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Select Destination Branch</label>
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => setSelectedBranchId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30 font-semibold"
+                >
+                  <option value="">-- No Branch Assignment (HQ) --</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} {b.code ? `(${b.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+          </div>
+
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || loading}
+              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all disabled:opacity-60 flex items-center gap-2"
+            >
+              {submitting && <RefreshCw size={12} className="animate-spin" />}
+              Reassign Branch
+            </button>
+          </div>
+        </form>
       </motion.div>
     </motion.div>
   );

@@ -386,11 +386,23 @@ export const hexaTrackApi = {
       apiRequest<DashboardSummary>(`/api/dashboard/summary?from=${from}&to=${to}`),
   },
   admin: {
-    users: (q?: string, page = 1, pageSize = 20) => {
+    users: (
+      q?: string,
+      page = 1,
+      pageSize = 20,
+      filters?: {
+        organizationUsersOnly?: boolean;
+        individualUsersOnly?: boolean;
+        branchUsersOnly?: boolean;
+      }
+    ) => {
       const params = new URLSearchParams();
       if (q?.trim()) params.set('q', q.trim());
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
+      if (filters?.organizationUsersOnly) params.set('organizationUsersOnly', 'true');
+      if (filters?.individualUsersOnly) params.set('individualUsersOnly', 'true');
+      if (filters?.branchUsersOnly) params.set('branchUsersOnly', 'true');
       const qs = params.toString();
       return apiRequest<AdminUserListResult>(`/api/admin/users?${qs}`);
     },
@@ -432,6 +444,8 @@ export const hexaTrackApi = {
       apiRequest<AdminWorkspaceListItem>('/api/admin/workspaces', { method: 'POST', body: payload }),
     repairWorkspaceAccess: (workspaceId: string) =>
       apiRequest<void>(`/api/admin/workspaces/${workspaceId}/repair-access`, { method: 'POST' }),
+    deleteWorkspace: (workspaceId: string) =>
+      apiRequest<void>(`/api/admin/workspaces/${workspaceId}`, { method: 'DELETE' }),
     assignWorkspaceUser: (workspaceId: string, userId: string, role: WorkspaceRoleName) =>
       apiRequest<void>(`/api/admin/workspaces/${workspaceId}/members`, { method: 'POST', body: { userId, role } }),
     changeWorkspaceRole: (workspaceId: string, userId: string, role: WorkspaceRoleName) =>
@@ -519,6 +533,8 @@ export const hexaTrackApi = {
       list: () => apiRequest<PricingConfiguration[]>('/api/admin/pricing'),
       upsert: (payload: Partial<PricingConfiguration> & { planName: string; monthlyPrice: number; yearlyPrice: number; currency: string; trialDays: number; maxUsers: number; maxBranches: number; maxTransactionsPerMonth: number; isActive: boolean }) =>
         apiRequest<PricingConfiguration>('/api/admin/pricing', { method: 'POST', body: payload }),
+      update: (id: string, payload: { planName: string; monthlyPrice: number; yearlyPrice: number; currency: string; trialDays: number; maxUsers: number; maxBranches: number; maxTransactionsPerMonth: number; isActive: boolean }) =>
+        apiRequest<PricingConfiguration>(`/api/admin/pricing/${id}`, { method: 'PUT', body: payload }),
       delete: (id: string) =>
         apiRequest<void>(`/api/admin/pricing/${id}`, { method: 'DELETE' }),
     },

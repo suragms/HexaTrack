@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hexatrack-core-v3';
+const CACHE_NAME = 'hexatrack-core-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -52,6 +52,10 @@ self.addEventListener('fetch', (event) => {
   // Bypass API requests completely (handled by custom Zustand/React Query offline strategies)
   if (req.url.includes('/api/')) return;
 
+  // Bypass ALL Next.js build assets — these contain hashed filenames that change on every
+  // build/restart. Caching them causes 404 cascades after redeployments or dev server restarts.
+  if (req.url.includes('/_next/')) return;
+
   // Bypass Next.js hot-reload development servers
   if (req.url.includes('/_next/webpack-hmr') || req.url.includes('hot-update')) return;
 
@@ -95,6 +99,10 @@ self.addEventListener('fetch', (event) => {
         // Serve offline fallback page for HTML navigation requests
         if (req.headers.get('accept')?.includes('text/html')) {
           return caches.match('/offline.html');
+        }
+        // If we have a cached version, we successfully serve it, so we don't throw the error.
+        if (cached) {
+          return cached;
         }
         throw err;
       });

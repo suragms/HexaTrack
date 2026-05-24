@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useFinanceStore } from '@/store/finance-store';
+import { useWorkspaceStore } from '@/store/workspace-store';
 import type { RecurrenceFrequency, TransactionType } from '@/lib/types';
 import { BottomSheet } from '@/components/ui/mobile-layout';
 
@@ -21,6 +22,8 @@ export function AddRecurringSheet({ open, onOpenChange }: { open: boolean; onOpe
   const accounts = useFinanceStore((state) => state.accounts);
   const categories = useFinanceStore((state) => state.categories);
   const addRecurring = useFinanceStore((state) => state.addRecurring);
+  const workspaces = useWorkspaceStore((state) => state.workspaces);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const loading = useFinanceStore((state) => state.loading);
   const clearFinanceError = useFinanceStore((state) => state.clearError);
   const [type, setType] = useState<TransactionType>('Expense');
@@ -93,6 +96,10 @@ export function AddRecurringSheet({ open, onOpenChange }: { open: boolean; onOpe
       return;
     }
 
+    const chosenAccount = accounts.find((a) => a.id === result.data.accountId);
+    const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+    const resolvedCurrency = chosenAccount?.currency || activeWorkspace?.currency || 'INR';
+
     setErrors({});
     clearFinanceError();
     await addRecurring({
@@ -101,7 +108,7 @@ export function AddRecurringSheet({ open, onOpenChange }: { open: boolean; onOpe
       type: result.data.type,
       frequency: result.data.frequency,
       amount: result.data.amount,
-      currency: 'USD',
+      currency: resolvedCurrency,
       note: result.data.note,
       nextRunOn: result.data.nextRunOn,
       endsOn: result.data.endsOn,

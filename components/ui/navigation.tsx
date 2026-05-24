@@ -33,6 +33,7 @@ export function SmartBackButton({ fallbackHref, label, className = '' }: SmartBa
   return (
     <button
       onClick={handleBack}
+      type="button"
       className={`group flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.02] text-[#8B9BB4] hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1] backdrop-blur-sm transition-all duration-200 active:scale-95 ${className}`}
       aria-label="Go Back"
     >
@@ -56,7 +57,7 @@ export function AdminBreadcrumbs({ items, className = '' }: AdminBreadcrumbsProp
   return (
     <nav className={`flex items-center flex-wrap gap-2 text-xs font-medium ${className}`} aria-label="Breadcrumb">
       <Link 
-        href="/admin/dashboard" 
+        href="/admin" 
         className="text-[#8B9BB4] hover:text-[#4F8CFF] transition-colors flex items-center gap-1"
       >
         <Home size={14} />

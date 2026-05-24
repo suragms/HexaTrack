@@ -7,6 +7,7 @@ using HexaTrack.Api.Domain;
 using HexaTrack.Api.Domain.Entities;
 using HexaTrack.Api.Infrastructure;
 using HexaTrack.Api.Infrastructure.Repositories;
+using Npgsql;
 
 namespace HexaTrack.Api.Application.Services;
 
@@ -62,6 +63,11 @@ public sealed class AdminUsersService(
             q = q.Where(x => x.IsSuperAdmin);
         }
 
+        if (filter.BranchUsersOnly == true)
+        {
+            q = q.Where(x => x.BranchId != null);
+        }
+
         int total = await q.CountAsync(cancellationToken);
         var pageUsers = q
             .OrderByDescending(x => x.CreatedAt)
@@ -91,7 +97,8 @@ public sealed class AdminUsersService(
                 u.Department,
                 org != null ? org.Name : null,
                 u.BranchId,
-                branch != null ? branch.Name : null))
+                branch != null ? branch.Name : null,
+                u.OrganizationId))
             .ToListAsync(cancellationToken);
         return new AdminUserListResult(items, page, pageSize, total);
     }
@@ -161,7 +168,7 @@ public sealed class AdminUsersService(
             };
 
             db.Users.Add(user);
-            WorkspaceRole membershipRole = validatedRequest.InitialWorkspaceRole ?? WorkspaceRole.Owner;
+            WorkspaceRole membershipRole = mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceRole.Owner : (validatedRequest.InitialWorkspaceRole ?? WorkspaceRole.Owner);
             WorkspaceSeedResult seed = AddStarterWorkspaceWithSeed(
                 db,
                 user.Id,
@@ -222,6 +229,15 @@ public sealed class AdminUsersService(
         }
         catch (DbUpdateException ex)
         {
+            if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                logger.LogWarning(
+                    ex,
+                    "Admin user create failed due to unique violation (duplicate email) actorUserId={ActorUserId} email={Email}",
+                    actorUserId,
+                    request.Email);
+                throw new InvalidOperationException("A user with this email already exists on the platform.", ex);
+            }
             logger.LogError(
                 ex,
                 "Admin user create failed during EF save actorUserId={ActorUserId} email={Email} organizationId={OrganizationId} branchId={BranchId}",

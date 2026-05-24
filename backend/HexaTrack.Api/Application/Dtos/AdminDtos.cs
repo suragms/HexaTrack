@@ -15,14 +15,16 @@ public sealed record AdminUserListItemDto(
     string? Department = null,
     string? OrganizationName = null,
     Guid? BranchId = null,
-    string? BranchName = null);
+    string? BranchName = null,
+    Guid? OrganizationId = null);
 public sealed record AdminUserListResult(IReadOnlyCollection<AdminUserListItemDto> Items, int Page, int PageSize, int TotalCount);
 public sealed record AdminUserListFilter(
     string? Query,
     bool? OrganizationUsersOnly,
     bool? IndividualUsersOnly,
     bool? LockedOnly,
-    bool? SuperAdminOnly);
+    bool? SuperAdminOnly,
+    bool? BranchUsersOnly = null);
 public sealed record AdminCreateUserRequest(
     string Email,
     string Password,

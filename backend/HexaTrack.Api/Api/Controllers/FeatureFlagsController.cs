@@ -37,16 +37,38 @@ public sealed class FeatureFlagsController(
             cancellationToken);
         await WriteSseAsync("snapshot", snapshot, cancellationToken);
 
+        // Redis pub/sub for live updates — gracefully degrade when Redis is unavailable
+        ISubscriber? subscriber = null;
+        try
+        {
+            subscriber = redis.GetSubscriber();
+        }
+        catch (Exception)
+        {
+            // Redis not available — send a close event and return (feature flags still work via snapshot)
+            await WriteRawSseAsync("info", "{\"message\":\"Live updates unavailable — Redis not connected\"}", cancellationToken);
+            return;
+        }
+
         var queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
         });
 
-        ISubscriber subscriber = redis.GetSubscriber();
         Action<RedisChannel, RedisValue> handler = (_, value) => queue.Writer.TryWrite(value.ToString());
 
-        await subscriber.SubscribeAsync(FeatureFlagChangeNotifier.Channel, handler);
+        try
+        {
+            await subscriber.SubscribeAsync(FeatureFlagChangeNotifier.Channel, handler);
+        }
+        catch (RedisConnectionException)
+        {
+            // Redis subscribe failed — send info and close gracefully
+            await WriteRawSseAsync("info", "{\"message\":\"Live updates unavailable — Redis not connected\"}", cancellationToken);
+            return;
+        }
+
         try
         {
             await foreach (string payload in queue.Reader.ReadAllAsync(cancellationToken))

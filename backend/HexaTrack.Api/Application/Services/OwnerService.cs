@@ -97,7 +97,8 @@ public sealed class OwnerService(HexaTrackDbContext db) : IOwnerService
                 u.Department,
                 u.Organization != null ? u.Organization.Name : null,
                 u.BranchId,
-                u.Branch != null ? u.Branch.Name : null))
+                u.Branch != null ? u.Branch.Name : null,
+                u.OrganizationId))
             .ToListAsync(ct);
     }
 
@@ -152,7 +153,8 @@ public sealed class OwnerService(HexaTrackDbContext db) : IOwnerService
             staff.Department,
             null,
             staff.BranchId,
-            branchName);
+            branchName,
+            staff.OrganizationId);
     }
 
     public Task<List<AdminUserListItemDto>> GetBranchStaffAsync(Guid organizationId, Guid branchId, CancellationToken ct)
@@ -213,6 +215,7 @@ public sealed class OwnerService(HexaTrackDbContext db) : IOwnerService
             staff.Department,
             null,
             staff.BranchId,
-            branchName);
+            branchName,
+            staff.OrganizationId);
     }
 }

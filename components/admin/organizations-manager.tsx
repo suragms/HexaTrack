@@ -108,7 +108,7 @@ export default function OrganizationsManager() {
                    className="w-full h-10 pl-10 pr-4 bg-[#121A22] border border-white/[0.06] rounded-xl text-sm outline-none focus:border-[#4F8CFF]/50 transition-all"
                  />
               </div>
-              <button onClick={() => loadData()} className="h-10 w-10 flex items-center justify-center bg-[#121A22] border border-white/[0.06] rounded-xl hover:bg-white/5 transition-colors">
+              <button type="button" onClick={() => loadData()} className="h-10 w-10 flex items-center justify-center bg-[#121A22] border border-white/[0.06] rounded-xl hover:bg-white/5 transition-colors">
                  <Filter size={16} className="text-[#8B9BB4]"/>
               </button>
            </div>
@@ -145,7 +145,7 @@ export default function OrganizationsManager() {
                       </p>
                    </div>
                    <div className="flex gap-2">
-                      <button className="px-3 py-1.5 text-[11px] font-bold bg-white/[0.04] border border-white/[0.05] rounded-lg hover:bg-white/[0.08] transition-colors">REFRESH</button>
+                      <button type="button" onClick={() => loadData()} className="px-3 py-1.5 text-[11px] font-bold bg-white/[0.04] border border-white/[0.05] rounded-lg hover:bg-white/[0.08] transition-colors">REFRESH</button>
                    </div>
                 </div>
                 
@@ -234,7 +234,7 @@ export default function OrganizationsManager() {
                                       <Link href={`/admin/organizations/${org.id}`} className="h-8 px-3 flex items-center gap-1.5 bg-[#4F8CFF]/10 border border-[#4F8CFF]/20 rounded-lg text-xs font-bold text-[#4F8CFF] hover:bg-[#4F8CFF] hover:text-white transition-all">
                                          Manage <ArrowUpRight size={12}/>
                                       </Link>
-                                      <button className="p-2 hover:bg-white/10 rounded-lg text-[#8B9BB4] hover:text-white"><MoreHorizontal size={14}/></button>
+                                      <button type="button" className="p-2 hover:bg-white/10 rounded-lg text-[#8B9BB4] hover:text-white"><MoreHorizontal size={14}/></button>
                                    </div>
                                 </td>
                              </tr>
@@ -248,14 +248,14 @@ export default function OrganizationsManager() {
 
           {/* Right Column */}
           <div className="xl:col-span-1 space-y-6">
-              <SubscriptionUsageCard analytics={analytics} />
+              <SubscriptionUsageCard analytics={analytics} onRefresh={loadData} />
               <FeatureTogglePanel />
           </div>
         </div>
       </main>
 
       {/* Mobile FAB menu */}
-      <div className="fixed bottom-20 right-4 z-50 md:hidden flex flex-col items-end gap-3">
+      <div className="fixed bottom-20 right-4 z-[9999] md:hidden flex flex-col items-end gap-3">
          <AnimatePresence>
            {isFabOpen && (
              <motion.div 
@@ -272,6 +272,7 @@ export default function OrganizationsManager() {
                 ].map((act) => (
                   <button 
                     key={act.type}
+                    type="button"
                     onClick={() => { setActiveModal(act.type as any); setIsFabOpen(false); }}
                     className="flex items-center gap-2 bg-[#1A232E] border border-white/[0.1] text-white shadow-2xl px-4 py-2 rounded-xl font-bold text-xs hover:scale-105 transition-transform active:scale-95"
                   >
@@ -284,6 +285,7 @@ export default function OrganizationsManager() {
          </AnimatePresence>
          <button 
            onClick={() => setIsFabOpen(!isFabOpen)} 
+           type="button"
            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-[0_12px_24px_-4px_rgba(79,140,255,0.5)] text-white transition-all duration-300 ${
              isFabOpen ? 'bg-red-500 rotate-45' : 'bg-[#4F8CFF]'
            }`}
@@ -316,6 +318,7 @@ function QuickAdminActions({ onAction }: { onAction: (id: string) => void }) {
       {items.map((it) => (
         <button
           key={it.id}
+          type="button"
           onClick={() => onAction(it.id)}
           className="h-9 px-3.5 flex items-center gap-2 bg-white/[0.04] border border-white/[0.06] rounded-xl text-xs font-bold text-white hover:bg-white/[0.08] transition-all"
         >
@@ -327,7 +330,7 @@ function QuickAdminActions({ onAction }: { onAction: (id: string) => void }) {
   );
 }
 
-function SubscriptionUsageCard({ analytics }: { analytics: AdminOrganizationAnalytics | null }) {
+function SubscriptionUsageCard({ analytics, onRefresh }: { analytics: AdminOrganizationAnalytics | null; onRefresh: () => void }) {
   return (
     <div className="bg-gradient-to-br from-[#1A232E] to-[#121A22] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden">
       <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-10 blur-3xl rounded-full" />
@@ -343,7 +346,7 @@ function SubscriptionUsageCard({ analytics }: { analytics: AdminOrganizationAnal
          <ProgressBar label="Scale Limit (Staff)" cur={analytics?.totalStaff || 0} max={5000} color="bg-emerald-500" />
       </div>
 
-      <button className="w-full mt-5 h-10 bg-white/[0.05] border border-white/[0.08] rounded-xl text-white text-xs font-bold transition-all flex items-center justify-center gap-2">
+      <button type="button" onClick={onRefresh} className="w-full mt-5 h-10 bg-white/[0.05] border border-white/[0.08] rounded-xl text-white text-xs font-bold transition-all flex items-center justify-center gap-2">
          Refresh Telemetry
       </button>
     </div>
@@ -379,7 +382,7 @@ function FeatureTogglePanel() {
 
 export function ModalWrapper({ title, desc, onClose, children }: { title: string; desc: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
        <motion.div 
          initial={{ scale: 0.95, opacity: 0 }} 
          animate={{ scale: 1, opacity: 1 }} 
@@ -391,7 +394,7 @@ export function ModalWrapper({ title, desc, onClose, children }: { title: string
                 <h3 className="font-bold text-xl text-white tracking-tight">{title}</h3>
                 <p className="text-xs text-[#8B9BB4] mt-0.5 font-medium">{desc}</p>
              </div>
-             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-white/[0.05] rounded-full text-[#8B9BB4] hover:text-white hover:bg-white/[0.1] transition-all">
+             <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-white/[0.05] rounded-full text-[#8B9BB4] hover:text-white hover:bg-white/[0.1] transition-all">
                 <X size={16} />
              </button>
           </div>
@@ -471,6 +474,12 @@ export function CreateBranchModal({ onClose, onComplete, organizations }: { onCl
     code: '',
   });
 
+  useEffect(() => {
+    if (organizations.length > 0 && !formData.organizationId) {
+      setFormData(prev => ({ ...prev, organizationId: organizations[0].id }));
+    }
+  }, [organizations, formData.organizationId]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.organizationId) return;
@@ -518,6 +527,12 @@ export function AddOwnerModal({ onClose, onComplete, organizations }: { onClose:
     email: '',
     password: '',
   });
+
+  useEffect(() => {
+    if (organizations.length > 0 && !formData.organizationId) {
+      setFormData(prev => ({ ...prev, organizationId: organizations[0].id }));
+    }
+  }, [organizations, formData.organizationId]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -568,6 +583,12 @@ export function AddStaffModal({ onClose, onComplete, organizations }: { onClose:
     department: 'Finance',
     password: '',
   });
+
+  useEffect(() => {
+    if (organizations.length > 0 && !formData.organizationId) {
+      setFormData(prev => ({ ...prev, organizationId: organizations[0].id }));
+    }
+  }, [organizations, formData.organizationId]);
 
   useEffect(() => {
     if (!formData.organizationId) {

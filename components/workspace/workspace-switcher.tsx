@@ -104,7 +104,7 @@ export function WorkspaceSwitcher() {
               type="button"
             >
               <Plus className="h-[18px] w-[18px]" aria-hidden />
-              New workspace
+              Create Workspace
             </button>
           </div>
         ) : null}

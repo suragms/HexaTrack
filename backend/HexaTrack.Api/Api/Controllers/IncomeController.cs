@@ -12,6 +12,16 @@ namespace HexaTrack.Api.Api.Controllers;
 public sealed class IncomeController(ITransactionService transactions) : ControllerBase
 {
     [HttpPost]
-    public Task<TransactionDto> Create(CreateTransactionRequest request, CancellationToken cancellationToken)
-        => transactions.CreateAsync(request with { Type = TransactionType.Income }, cancellationToken);
+    public async Task<ActionResult<TransactionDto>> Create(CreateTransactionRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await transactions.CreateAsync(request with { Type = TransactionType.Income }, cancellationToken);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }

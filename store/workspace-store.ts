@@ -39,6 +39,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const match = persisted ? list.find((w) => w.id === persisted) : undefined;
     const picked = match ?? list.find((w) => w.isDefault) ?? list[0];
     if (!picked) {
+      set({ workspaces: list, activeWorkspaceId: null });
       throw new Error('No workspaces available.');
     }
     if (typeof window !== 'undefined') {

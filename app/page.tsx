@@ -138,12 +138,21 @@ export default function Home() {
     }
   }, [screen]);
 
+  // 1. Initial mounting gate to guarantee server-client HTML matching
   if (!mounted) {
-    return null; // Completely suppress SSR output during static stage to bypass client hydration collision!
+    return (
+      <main className="grid min-h-screen place-items-center bg-background px-4">
+        <div className="surface rounded-3xl p-6 flex flex-col items-center">
+          <BrandMark tone="dark" />
+          <div className="mt-6 h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="mt-3 text-center text-sm text-on-surface-variant">Initializing Workspace...</p>
+        </div>
+      </main>
+    );
   }
 
+  // 2. Post-mount hydration gate to wait for Zustand store to load
   if (!hydrated) {
-
     return (
       <main className="grid min-h-screen place-items-center bg-background px-4">
         <div className="surface rounded-3xl p-6 flex flex-col items-center">

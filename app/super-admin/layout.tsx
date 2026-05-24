@@ -6,8 +6,9 @@ import { useAuthStore } from '@/store/auth-store';
 import {
   LayoutDashboard, Building2, GitBranch, Users, UserCog, CreditCard,
   Layers, Settings, ShieldCheck, BarChart3, Lock, Cpu, ChevronLeft,
-  ChevronRight, LogOut, Menu, X, BellRing
+  ChevronRight, LogOut, Menu, X, BellRing, Crown
 } from 'lucide-react';
+import { hexaTrackApi } from '@/lib/api';
 
 const NAV_ITEMS = [
   { href: '/super-admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,7 +17,7 @@ const NAV_ITEMS = [
   { href: '/super-admin/branches', label: 'Branches', icon: GitBranch },
   { href: '/super-admin/users', label: 'Users', icon: Users },
   { href: '/super-admin/staff', label: 'Staff', icon: UserCog },
-  { href: '/super-admin/plans', label: 'Plans', icon: CreditCard },
+  { href: '/super-admin/plans', label: 'Plans', icon: Crown },
   { href: '/super-admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/super-admin/permissions', label: 'Permissions', icon: ShieldCheck },
   { href: '/super-admin/analytics', label: 'Analytics', icon: BarChart3 },
@@ -29,11 +30,27 @@ const NAV_ITEMS = [
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isSuperAdmin, hydrated, hydrate, logout } = useAuthStore();
+  const { user, isSuperAdmin, hydrated, hydrate, logout, applyMeResponse, accessToken } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => { if (!hydrated) hydrate(); }, [hydrated, hydrate]);
+
+  useEffect(() => {
+    if (accessToken) {
+      hexaTrackApi.auth.me()
+        .then((res) => {
+          applyMeResponse(res);
+          if (!res.isSuperAdmin) {
+            router.replace('/');
+          }
+        })
+        .catch(() => {
+          logout();
+          router.replace('/');
+        });
+    }
+  }, [accessToken, applyMeResponse, router, logout]);
 
   useEffect(() => {
     if (hydrated && (!user || !isSuperAdmin)) {

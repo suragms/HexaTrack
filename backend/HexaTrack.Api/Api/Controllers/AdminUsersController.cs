@@ -20,10 +20,11 @@ public sealed class AdminUsersController(ICurrentUser currentUser, IAdminUsersSe
         [FromQuery] bool? individualUsersOnly,
         [FromQuery] bool? lockedOnly,
         [FromQuery] bool? superAdminOnly,
+        [FromQuery] bool? branchUsersOnly,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
-        => users.ListAsync(new AdminUserListFilter(q, organizationUsersOnly, individualUsersOnly, lockedOnly, superAdminOnly), page, pageSize, cancellationToken);
+        => users.ListAsync(new AdminUserListFilter(q, organizationUsersOnly, individualUsersOnly, lockedOnly, superAdminOnly, branchUsersOnly), page, pageSize, cancellationToken);
 
     [HttpGet("individual")]
     public Task<AdminUserListResult> Individual(

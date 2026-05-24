@@ -42,13 +42,13 @@ export function BottomSheet({ open, onClose, children, labelledBy, fullHeight = 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             onClick={onClose}
-            className="sheet-backdrop fixed inset-0 z-[10000] bg-[#102A43]/35 backdrop-blur-[12px]"
+            className="sheet-backdrop fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm touch-none"
             aria-hidden="true"
           />
 
           {/* Panel Container */}
           <div 
-            className="fixed inset-x-0 bottom-0 z-[10005] flex items-end justify-center overflow-x-hidden overflow-y-visible pointer-events-none pt-8 sm:inset-0 sm:items-center sm:pt-0"
+            className="fixed inset-0 z-[99999] flex items-end justify-center overflow-x-hidden overflow-y-visible pointer-events-none pt-8 sm:items-center sm:pt-0"
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelledBy}
@@ -67,18 +67,13 @@ export function BottomSheet({ open, onClose, children, labelledBy, fullHeight = 
                 stiffness: 380,
                 mass: 0.6 
               }}
-              className={`pointer-events-auto relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-[#E5E7EB] shadow-[0_-18px_55px_rgba(16,42,67,0.16)] sm:rounded-[32px] ${
+              className={`bottom-sheet-panel pointer-events-auto relative flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border shadow-[0_-18px_55px_rgba(16,42,67,0.16)] sm:rounded-[32px] ${
                 fullHeight ? 'h-[96dvh]' : 'h-auto max-h-[92dvh]'
               }`}
-              style={{ 
-                background: 'rgba(255, 255, 255, 0.96)',
-                backdropFilter: 'blur(32px)',
-                WebkitBackdropFilter: 'blur(32px)',
-              }}
             >
               {/* Visual Drag Handle */}
               <div className="absolute top-0 left-0 right-0 flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing z-20">
-                 <div className="h-1.5 w-12 rounded-full bg-[#D1D5DB]" />
+                 <div className="bottom-sheet-handle h-1.5 w-12 rounded-full" />
               </div>
               
               {/* Component Payload */}

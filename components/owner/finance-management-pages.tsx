@@ -34,6 +34,8 @@ import type { Account, Category, Transaction, TransactionType } from '@/lib/type
 import { useAuthStore } from '@/store/auth-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
+import { showToast } from '@/components/ui/toast';
+import { AddTransactionSheet } from '@/components/transactions/add-transaction-sheet';
 
 type FinanceKind = 'income' | 'expenses' | 'accounts' | 'transactions' | 'analytics' | 'ledger' | 'categories';
 type TxFormType = Extract<TransactionType, 'Income' | 'Expense'>;
@@ -96,8 +98,15 @@ function OwnerFinanceShell({ kind }: { kind: FinanceKind }) {
   const [quickOpen, setQuickOpen] = useState<TxFormType | null>(null);
 
   useEffect(() => {
-    if (hydrated && (!user || user.organizationRole?.toLowerCase() !== 'owner')) {
-      router.replace('/');
+    if (hydrated) {
+      if (!user) {
+        router.replace('/');
+        return;
+      }
+      const role = user.organizationRole?.toLowerCase();
+      if (role === 'staff') {
+        router.replace('/staff/dashboard');
+      }
     }
   }, [hydrated, router, user]);
 
@@ -137,7 +146,7 @@ function OwnerFinanceShell({ kind }: { kind: FinanceKind }) {
               {kind !== 'analytics' && kind !== 'ledger' ? (
                 <button
                   type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: kind === 'expenses' ? 'Expense' : 'Income' } }))}
+                  onClick={() => setQuickOpen(kind === 'expenses' ? 'Expense' : 'Income')}
                   className="h-11 rounded-[18px] bg-[#10B981] px-5 text-sm font-bold text-white active:scale-95"
                 >
                   <Plus className="mr-2 inline h-4 w-4" />
@@ -170,7 +179,7 @@ function OwnerFinanceShell({ kind }: { kind: FinanceKind }) {
             {kind !== 'analytics' && kind !== 'ledger' ? (
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: kind === 'expenses' ? 'Expense' : 'Income' } }))}
+                onClick={() => setQuickOpen(kind === 'expenses' ? 'Expense' : 'Income')}
                 className="h-9 px-3 rounded-xl bg-[#10B981] text-[11px] font-bold text-white flex items-center gap-1.5 active:scale-95 shrink-0"
               >
                 <Plus size={14} /> Add
@@ -198,10 +207,19 @@ function OwnerFinanceShell({ kind }: { kind: FinanceKind }) {
         {/* Fixed Bottom Navigation */}
         <OwnerBottomNav 
           activeTab={kind === 'transactions' ? 'history' : kind === 'analytics' ? 'reports' : 'home'} 
-          onAdd={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: kind === 'expenses' ? 'Expense' : 'Income' } }))} 
+          onAdd={() => setQuickOpen(kind === 'expenses' ? 'Expense' : 'Income')} 
           disabled={!activeWorkspaceId} 
         />
       </div>
+
+      {/* Transaction Sheet */}
+      <AddTransactionSheet
+        open={quickOpen !== null}
+        onOpenChange={(v) => { if (!v) setQuickOpen(null); }}
+        defaultType={quickOpen || undefined}
+        initialStep="menu"
+        onSaved={() => { if (activeWorkspaceId) void loadWorkspace(); }}
+      />
     </>
   );
 }
@@ -316,7 +334,7 @@ function CategoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
       });
       onSaved();
     } catch(e) {
-       alert(e instanceof Error ? e.message : 'Failed to create category.');
+       showToast('error', e instanceof Error ? e.message : 'Failed to create category.');
     } finally {
       setSaving(false);
     }
@@ -681,6 +699,8 @@ export function QuickTransactionModal({ type, onClose }: { type: TxFormType; onC
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const loadWorkspace = useFinanceStore((state) => state.loadWorkspace);
+  const accounts = useFinanceStore((state) => state.accounts);
+  const workspaces = useWorkspaceStore((state) => state.workspaces);
   const queryClient = useQueryClient();
   
   const [saving, setSaving] = useState(false);
@@ -694,18 +714,28 @@ export function QuickTransactionModal({ type, onClose }: { type: TxFormType; onC
     recurring: false,
   });
 
+  useEffect(() => {
+    if (accounts.length > 0 && !form.accountId) {
+      setForm((prev) => ({ ...prev, accountId: accounts[0].id }));
+    }
+  }, [accounts, form.accountId]);
+
   const isValid = form.amount && Number(form.amount) > 0 && form.accountId && form.categoryId;
 
   async function save(addAnother = false) {
     if (!isValid) return;
     setSaving(true);
     try {
+      const chosenAccount = accounts.find((a) => a.id === form.accountId);
+      const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+      const currencyCode = chosenAccount?.currency || activeWorkspace?.currency || 'INR';
+
       await addTransaction({
         accountId: form.accountId,
         categoryId: form.categoryId,
         type,
         amount: Number(form.amount),
-        currency: 'USD', // Auto Lookup later if needed
+        currency: currencyCode,
         merchant: form.merchant || undefined,
         note: form.note || undefined,
         occurredOn: form.occurredOn,
@@ -722,7 +752,7 @@ export function QuickTransactionModal({ type, onClose }: { type: TxFormType; onC
         onClose();
       }
     } catch (err) {
-       alert(err instanceof Error ? err.message : 'Submission failed.');
+       showToast('error', err instanceof Error ? err.message : 'Submission failed.');
     } finally {
       setSaving(false);
     }
@@ -954,7 +984,7 @@ function OwnerBottomNav({ activeTab, onAdd, disabled }: { activeTab: BottomTab; 
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50"
+      className="fixed inset-x-0 bottom-0 z-40"
       style={{
         background: 'rgba(5,8,22,0.92)',
         backdropFilter: 'blur(20px)',

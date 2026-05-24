@@ -19,10 +19,12 @@ export function UnifiedQuickAdd() {
 
   // Hide on public pages or when auth is not loaded
   const isAuthenticated = !!user;
-  const isPublicPage = pathname === '/' || pathname === '/login' || pathname === '/register' || pathname.startsWith('/auth');
+  const isPublicPage = (pathname === '/' && !isAuthenticated) || pathname === '/login' || pathname === '/register' || pathname.startsWith('/auth');
+  const isLocalManagedPage = pathname.startsWith('/dashboard') || pathname.startsWith('/owner') || pathname.startsWith('/staff');
 
   // Keyboard shortcut: Pressing '+' opens the quick add menu
   useEffect(() => {
+    if (isLocalManagedPage) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === '+' && !isPublicPage && isAuthenticated) {
         // Only trigger if not typing in inputs
@@ -36,10 +38,11 @@ export function UnifiedQuickAdd() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPublicPage, isAuthenticated]);
+  }, [isPublicPage, isAuthenticated, isLocalManagedPage]);
 
   // Listen for global programmatic quick add events
   useEffect(() => {
+    if (isLocalManagedPage) return;
     const handleOpenEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ type?: TransactionType; menu?: boolean }>;
       if (customEvent.detail?.menu) {
@@ -53,9 +56,9 @@ export function UnifiedQuickAdd() {
     };
     window.addEventListener('hexatrack:open-quick-add', handleOpenEvent);
     return () => window.removeEventListener('hexatrack:open-quick-add', handleOpenEvent);
-  }, []);
+  }, [isLocalManagedPage]);
 
-  if (!hydrated || !isAuthenticated || isPublicPage) {
+  if (!hydrated || !isAuthenticated || isPublicPage || isLocalManagedPage) {
     return null;
   }
 
@@ -68,7 +71,7 @@ export function UnifiedQuickAdd() {
   return (
     <>
       {/* ── FAB BUTTON ── */}
-      <div className="fixed bottom-6 right-6 z-[9999] hidden pointer-events-auto md:flex md:bottom-8 md:right-8">
+      <div className={`fixed bottom-6 right-6 z-[9999] pointer-events-auto md:bottom-8 md:right-8 hidden md:flex`}>
         <div className="absolute rounded-full pointer-events-none w-16 h-16 bg-primary/20 blur-md -translate-x-1 -translate-y-1" style={{ top: -4, left: -4 }} />
         <motion.button
           onClick={() => setShowMenu(!showMenu)}
@@ -102,7 +105,7 @@ export function UnifiedQuickAdd() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMenu(false)}
-              className="fixed inset-0 bg-[#050816]/75 backdrop-blur-md z-[9997]"
+              className="fixed inset-0 bg-[#050816]/75 backdrop-blur-md z-[9997] touch-none"
             />
 
             {/* Float Menu Container */}
@@ -168,7 +171,7 @@ export function UnifiedQuickAdd() {
         open={showSheet}
         onOpenChange={setShowSheet}
         defaultType={selectedType}
-        initialStep="form"
+        initialStep="menu"
       />
     </>
   );

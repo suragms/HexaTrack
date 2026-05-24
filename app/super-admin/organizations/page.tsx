@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { hexaTrackApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
+import { showToast } from '@/components/ui/toast';
 import type { OrganizationListItem, CreateOrganizationRequest, OrgPlan } from '@/lib/types';
 import {
   Building2, Plus, Search, MoreVertical, Users, GitBranch, Crown,
@@ -42,22 +43,40 @@ export default function OrganizationsPage() {
   useEffect(() => { fetchOrgs(); }, [fetchOrgs]);
 
   const handleSuspend = async (id: string) => {
-    await hexaTrackApi.admin.suspendOrganization(id, { reason: 'Suspended by admin' });
-    setActionOrg(null);
-    fetchOrgs();
+    try {
+      await hexaTrackApi.admin.suspendOrganization(id, { reason: 'Suspended by admin' });
+      showToast('success', 'Organization suspended successfully');
+      setActionOrg(null);
+      fetchOrgs();
+    } catch (err: any) {
+      console.error(err);
+      showToast('error', err?.message || 'Failed to suspend organization');
+    }
   };
 
   const handleActivate = async (id: string) => {
-    await hexaTrackApi.admin.activateOrganization(id);
-    setActionOrg(null);
-    fetchOrgs();
+    try {
+      await hexaTrackApi.admin.activateOrganization(id);
+      showToast('success', 'Organization activated successfully');
+      setActionOrg(null);
+      fetchOrgs();
+    } catch (err: any) {
+      console.error(err);
+      showToast('error', err?.message || 'Failed to activate organization');
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this organization? This cannot be undone.')) return;
-    await hexaTrackApi.admin.deleteOrganization(id);
-    setActionOrg(null);
-    fetchOrgs();
+    try {
+      await hexaTrackApi.admin.deleteOrganization(id);
+      showToast('success', 'Organization deleted successfully');
+      setActionOrg(null);
+      fetchOrgs();
+    } catch (err: any) {
+      console.error(err);
+      showToast('error', err?.message || 'Failed to delete organization');
+    }
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);

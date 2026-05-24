@@ -73,6 +73,7 @@ export function ToastContainer() {
             <span className="text-xs font-bold text-white/90 flex-1 leading-tight">{toast.message}</span>
             <button
               onClick={() => dismiss(toast.id)}
+              type="button"
               className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
             >
               <X size={12} />

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { useFinanceStore } from '@/store/finance-store';
+import { TransactionType } from '@/lib/types';
 import { BrandMark } from '@/components/ui/brand';
 import { 
   LayoutDashboard, Users, Settings, LogOut, Bell, Search, 
@@ -42,18 +43,22 @@ export default function OwnerDashboard() {
   const router = useRouter();
   const { user, logout, hydrated } = useAuthStore();
   const [activeTab, setActiveTab] = useState<OwnerView>('overview');
-  const [isAddingTx, setIsAddingTx] = useState(false);
+  const [txType, setTxType] = useState<TransactionType | 'Menu' | null>(null);
 
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const loadFinanceWorkspace = useFinanceStore((s) => s.loadWorkspace);
   const { loading, error, clearError } = useFinanceStore();
 
   useEffect(() => {
-    if (hydrated && !user) {
-      router.replace('/');
-    }
-    if (hydrated && user && user.organizationRole?.toLowerCase() !== 'owner') {
-       router.replace('/');
+    if (hydrated) {
+      if (!user) {
+        router.replace('/');
+        return;
+      }
+      const role = user.organizationRole?.toLowerCase();
+      if (role === 'staff') {
+        router.replace('/staff/dashboard');
+      }
     }
   }, [hydrated, user, router]);
 
@@ -70,13 +75,13 @@ export default function OwnerDashboard() {
       const action = params.get('action');
       if (action === 'add-expense') {
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }));
+          setTxType('Expense');
         }, 800);
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
       } else if (action === 'add-income') {
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Income' } }));
+          setTxType('Income');
         }, 800);
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
@@ -106,7 +111,7 @@ export default function OwnerDashboard() {
         case 'integrations': return <IntegrationsHub />;
         
         /* Shared Branch Contextual Finance Screens */
-        case 'finance-dashboard': return <DashboardScreen onAddTransaction={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }))} />;
+        case 'finance-dashboard': return <DashboardScreen onAddTransaction={() => setTxType('Expense')} />;
         case 'transactions': return <HistoryScreen />;
         case 'reports': return <ReportsScreen />;
         case 'recurring': return <RecurringScreen />;
@@ -123,7 +128,7 @@ export default function OwnerDashboard() {
       {/* Dynamic Shared Components */}
 
       {/* ─── DESKTOP LAYOUT (md+) ─── */}
-      <div className="fintech-clean hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
+      <div className="hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
         {/* Desktop Sidebar */}
         <aside className="w-[280px] border-r border-white/[0.05] bg-[#0B1015] flex flex-col sticky top-0 h-screen">
           <div className="h-20 flex items-center px-7 border-b border-white/[0.04]">
@@ -193,9 +198,10 @@ export default function OwnerDashboard() {
               </div>
               <div className="flex items-center gap-2.5">
                   <button 
-                    onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }))}
+                    onClick={() => setTxType('Expense')}
                     disabled={!activeWorkspaceId}
                     className="h-10 px-4 bg-[#4F8CFF] text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-[#4F8CFF]/20 hover:brightness-105 transition-all active:scale-95 disabled:opacity-50"
+                    type="button"
                   >
                      <Plus size={16} /> Record Feed
                   </button>
@@ -232,7 +238,7 @@ export default function OwnerDashboard() {
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
       <div
-        className="fintech-clean mx-auto md:hidden flex w-full max-w-[430px] flex-col bg-[#F5F7F8] text-[#102A43] font-sans"
+        className="mx-auto md:hidden flex w-full max-w-[430px] flex-col bg-[#F5F7F8] text-[#102A43] font-sans"
         style={{
           minHeight: '100dvh',
           overflowX: 'hidden',
@@ -299,12 +305,13 @@ export default function OwnerDashboard() {
 
         {/* ─── FIXED BOTTOM NAVIGATION ─── */}
         <div
-          className="fixed inset-x-0 bottom-0 z-[9000] pointer-events-auto"
+          className="fixed inset-x-0 bottom-0 z-40 pointer-events-auto"
           style={{
             background: 'rgba(5,8,22,0.92)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             borderTop: '1px solid rgba(255,255,255,0.05)',
+            touchAction: 'none',
           }}
         >
           <nav
@@ -329,19 +336,26 @@ export default function OwnerDashboard() {
               <motion.button
                 whileTap={{ scale: 0.90 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }))}
+                onClick={() => setTxType('Menu')}
                 disabled={!activeWorkspaceId}
-                className="fixed left-1/2 z-[9999] flex -translate-x-1/2 items-center justify-center rounded-full overflow-hidden disabled:opacity-50 pointer-events-auto"
+                type="button"
+                className="fixed left-1/2 z-50 flex -translate-x-1/2 items-center justify-center rounded-full overflow-hidden disabled:opacity-50 pointer-events-auto"
                 style={{
                   width: 72,
                   height: 72,
                   bottom: 'calc(28px + env(safe-area-inset-bottom))',
-                  background: 'linear-gradient(135deg, #0F9D8A 0%, #00BFA6 100%)',
-                  boxShadow: '0 10px 30px rgba(15,157,138,0.35), 0 2px 8px rgba(0,0,0,0.25)',
+                  background: 'linear-gradient(135deg, #4F8CFF 0%, #1FD18B 100%)',
+                  boxShadow: '0 10px 30px rgba(79, 140, 255, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.22)',
                   border: '1.5px solid rgba(255,255,255,0.12)',
                 }}
               >
-                <Plus size={28} strokeWidth={2} className="text-white" />
+                <motion.div
+                  initial={false}
+                  animate={{ rotate: txType !== null ? 45 : 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                >
+                  <Plus size={28} strokeWidth={2} className="text-white" />
+                </motion.div>
               </motion.button>
             </div>
             <OwnerNavItem
@@ -359,6 +373,13 @@ export default function OwnerDashboard() {
           </nav>
         </div>
       </div>
+
+      <AddTransactionSheet
+        open={txType !== null}
+        onOpenChange={(v) => { if (!v) setTxType(null); }}
+        defaultType={(txType === 'Income' || txType === 'Expense') ? txType : undefined}
+        initialStep="menu"
+      />
     </>
   );
 }

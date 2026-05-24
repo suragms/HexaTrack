@@ -16,9 +16,14 @@ interface AccountSelectorProps {
 }
 
 export function AccountSelector({ value, onChange, branchId, className, disabled }: AccountSelectorProps) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: accounts, isLoading, error } = useBranchAccounts(branchId);
 
-  if (isLoading) {
+  if (!mounted || isLoading) {
     return (
       <div className="flex h-12 items-center gap-2 rounded-xl border border-white/[0.06] bg-[#121A22] px-4 text-sm font-medium text-[#8B9BB4]">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -80,9 +85,14 @@ interface CategorySelectorProps {
 }
 
 export function CategorySelector({ value, onChange, type, branchId, className, disabled }: CategorySelectorProps) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: categories, isLoading, error } = useCategories({ branchId, type });
 
-  if (isLoading) {
+  if (!mounted || isLoading) {
     return (
       <div className="flex h-12 items-center gap-2 rounded-xl border border-white/[0.06] bg-[#121A22] px-4 text-sm font-medium text-[#8B9BB4]">
         <Loader2 className="h-4 w-4 animate-spin" />

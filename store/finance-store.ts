@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { hexaTrackApi } from '@/lib/api';
+import { round } from '@/lib/format';
 import type {
   Account,
   Category,
@@ -60,12 +61,12 @@ const recurring: RecurringTransaction[] = [];
 const groupExpenses: GroupExpense[] = [];
 
 function makeReport(rows: Transaction[]): ReportSummary {
-  const income = rows.filter((row) => row.type === 'Income').reduce((sum, row) => sum + row.amount, 0);
-  const expense = rows.filter((row) => row.type === 'Expense').reduce((sum, row) => sum + row.amount, 0);
+  const income = round(rows.filter((row) => row.type === 'Income').reduce((sum, row) => round(sum + row.amount), 0));
+  const expense = round(rows.filter((row) => row.type === 'Expense').reduce((sum, row) => round(sum + row.amount), 0));
   return {
     income,
     expense,
-    net: income - expense,
+    net: round(income - expense),
     cashflow: buildCashflow(rows),
     spendingByCategory: [],
   };
@@ -76,9 +77,9 @@ function buildCashflow(rows: Transaction[]) {
   for (const row of rows) {
     const period = `${row.occurredOn.slice(0, 7)}-01`;
     const current = buckets.get(period) ?? { period, income: 0, expense: 0, net: 0 };
-    if (row.type === 'Income') current.income += row.amount;
-    if (row.type === 'Expense') current.expense += row.amount;
-    current.net = current.income - current.expense;
+    if (row.type === 'Income') current.income = round(current.income + row.amount);
+    if (row.type === 'Expense') current.expense = round(current.expense + row.amount);
+    current.net = round(current.income - current.expense);
     buckets.set(period, current);
   }
   return Array.from(buckets.values()).sort((a, b) => a.period.localeCompare(b.period));
@@ -252,13 +253,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         const nextTransactions = [mockCreated, ...state.transactions];
         const label = transaction.type === 'Income' ? 'Income' : 'Expense';
         const report = { ...state.report };
-        if (transaction.type === 'Income') report.income += transaction.amount;
-        else report.expense += transaction.amount;
-        report.net = report.income - report.expense;
+        if (transaction.type === 'Income') report.income = round(report.income + transaction.amount);
+        else report.expense = round(report.expense + transaction.amount);
+        report.net = round(report.income - report.expense);
 
         const nextDash = state.dashboard ? {
           ...state.dashboard,
-          consolidatedBalance: nextAccounts.reduce((sum, a) => sum + a.balance, 0),
+          consolidatedBalance: round(nextAccounts.reduce((sum, a) => round(sum + a.balance), 0)),
           report
         } : null;
 
@@ -311,6 +312,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         note: transaction.note,
         occurredOn: transaction.occurredOn,
         tagIds,
+        idempotencyKey: crypto.randomUUID(),
       });
 
       // Refresh dashboard + accounts in parallel for instant balance/chart updates
@@ -395,13 +397,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           const nextTransactions = [mockCreated, ...state.transactions];
           const label = transaction.type === 'Income' ? 'Income' : 'Expense';
           const report = { ...state.report };
-          if (transaction.type === 'Income') report.income += transaction.amount;
-          else report.expense += transaction.amount;
-          report.net = report.income - report.expense;
+          if (transaction.type === 'Income') report.income = round(report.income + transaction.amount);
+          else report.expense = round(report.expense + transaction.amount);
+          report.net = round(report.income - report.expense);
 
           const nextDash = state.dashboard ? {
             ...state.dashboard,
-            consolidatedBalance: nextAccounts.reduce((sum, a) => sum + a.balance, 0),
+            consolidatedBalance: round(nextAccounts.reduce((sum, a) => round(sum + a.balance), 0)),
             report
           } : null;
 

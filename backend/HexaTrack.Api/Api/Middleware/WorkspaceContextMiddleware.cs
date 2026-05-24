@@ -35,10 +35,19 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
         }
 
         Guid? requestedWorkspaceId = null;
-        if (context.Request.Headers.TryGetValue("X-Workspace-Id", out Microsoft.Extensions.Primitives.StringValues headerValues) &&
-            Guid.TryParse(headerValues.ToString(), out Guid parsedWorkspaceId))
+        if (context.Request.Headers.TryGetValue("X-Workspace-Id", out Microsoft.Extensions.Primitives.StringValues headerValues))
         {
-            requestedWorkspaceId = parsedWorkspaceId;
+            string headerVal = headerValues.ToString();
+            if (Guid.TryParse(headerVal, out Guid parsedWorkspaceId))
+            {
+                requestedWorkspaceId = parsedWorkspaceId;
+            }
+            else
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(new { error = "Invalid workspace ID format. Expected a valid UUID." });
+                return;
+            }
         }
 
         string? userIdStr = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -89,6 +98,44 @@ public sealed class WorkspaceContextMiddleware(RequestDelegate next)
             allowed = await db.Set<Workspace>()
                 .AsNoTracking()
                 .AnyAsync(w => w.Id == workspaceId && w.OwnerUserId == userId, context.RequestAborted);
+        }
+
+        if (!allowed && user.BranchId.HasValue)
+        {
+            Guid? branchWorkspaceId = await db.Set<Branch>().AsNoTracking()
+                .Where(b => b.Id == user.BranchId.Value)
+                .Select(b => b.WorkspaceId)
+                .FirstOrDefaultAsync(context.RequestAborted);
+
+            if (branchWorkspaceId.HasValue && branchWorkspaceId.Value == workspaceId)
+            {
+                allowed = true;
+            }
+        }
+
+        // Organization Owners may access any workspace belonging to their organization
+        if (!allowed && user.OrganizationRole == "Owner" && user.OrganizationId.HasValue)
+        {
+            bool workspaceBelongsToOrg = await db.Set<Workspace>()
+                .AsNoTracking()
+                .AnyAsync(
+                    w => w.Id == workspaceId && w.OrganizationId == user.OrganizationId.Value,
+                    context.RequestAborted);
+
+            if (!workspaceBelongsToOrg)
+            {
+                // Also accept branch workspaces whose branch belongs to this organization
+                workspaceBelongsToOrg = await db.Set<Branch>()
+                    .AsNoTracking()
+                    .AnyAsync(
+                        b => b.WorkspaceId.HasValue && b.WorkspaceId.Value == workspaceId && b.OrganizationId == user.OrganizationId.Value,
+                        context.RequestAborted);
+            }
+
+            if (workspaceBelongsToOrg)
+            {
+                allowed = true;
+            }
         }
 
         if (!allowed)

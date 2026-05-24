@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'msapplication-TileColor': '#050816',
+    'msapplication-TileColor': '#F9FAFB',
     'msapplication-tap-highlight': 'no',
   },
 };
@@ -52,7 +52,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#050816',
+  themeColor: '#F9FAFB',
 };
 
 import { PwaProvider } from '@/components/pwa/pwa-provider';
@@ -60,12 +60,12 @@ import { UnifiedQuickAdd } from '@/components/ui/unified-quick-add';
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html className="dark" lang="en">
+    <html className="light fintech-clean" lang="en">
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-background text-on-surface antialiased">
+      <body className="bg-background text-[#111827] antialiased">
         <QueryProvider>
           {children}
           <ToastContainer />

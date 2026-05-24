@@ -42,12 +42,12 @@ export default function AnalyticsPage() {
   const d = data ?? {} as AdminAnalyticsDashboard;
 
   const charts = [
-    { title: 'New Users', data: d.newUsersByDay?.map(p => p.value) ?? [], color: '#10B981', icon: Users, total: d.newUsersByDay?.reduce((s, p) => s + p.value, 0) ?? 0 },
-    { title: 'Cumulative Users', data: d.cumulativeUsersByDay?.map(p => p.value) ?? [], color: '#0D9488', icon: Users, total: d.cumulativeUsersByDay?.at(-1)?.value ?? 0 },
-    { title: 'New Workspaces', data: d.newWorkspacesByDay?.map(p => p.value) ?? [], color: '#F59E0B', icon: Layers, total: d.newWorkspacesByDay?.reduce((s, p) => s + p.value, 0) ?? 0 },
-    { title: 'Active Users', data: d.activeUsersByDay?.map(p => p.value) ?? [], color: '#EC4899', icon: Activity, total: d.activeUsersByDay?.at(-1)?.value ?? 0 },
-    { title: 'Transactions', data: d.transactionsByDay?.map(p => p.value) ?? [], color: '#10B981', icon: BarChart3, total: d.transactionsByDay?.reduce((s, p) => s + p.value, 0) ?? 0 },
-    { title: 'Token Usage', data: d.tokenUsageByDay?.map(p => p.promptTokens + p.completionTokens) ?? [], color: '#8B5CF6', icon: DollarSign, total: d.tokenUsageByDay?.reduce((s, p) => s + p.promptTokens + p.completionTokens, 0) ?? 0 },
+    { title: 'New Users', data: d.newUsersByDay?.map(p => p?.value ?? 0) ?? [], color: '#10B981', icon: Users, total: d.newUsersByDay?.reduce((s, p) => s + (p?.value ?? 0), 0) ?? 0 },
+    { title: 'Cumulative Users', data: d.cumulativeUsersByDay?.map(p => p?.value ?? 0) ?? [], color: '#0D9488', icon: Users, total: d.cumulativeUsersByDay?.at(-1)?.value ?? 0 },
+    { title: 'New Workspaces', data: d.newWorkspacesByDay?.map(p => p?.value ?? 0) ?? [], color: '#F59E0B', icon: Layers, total: d.newWorkspacesByDay?.reduce((s, p) => s + (p?.value ?? 0), 0) ?? 0 },
+    { title: 'Active Users', data: d.activeUsersByDay?.map(p => p?.value ?? 0) ?? [], color: '#EC4899', icon: Activity, total: d.activeUsersByDay?.at(-1)?.value ?? 0 },
+    { title: 'Transactions', data: d.transactionsByDay?.map(p => p?.value ?? 0) ?? [], color: '#10B981', icon: BarChart3, total: d.transactionsByDay?.reduce((s, p) => s + (p?.value ?? 0), 0) ?? 0 },
+    { title: 'Token Usage', data: d.tokenUsageByDay?.map(p => (p?.promptTokens ?? 0) + (p?.completionTokens ?? 0)) ?? [], color: '#8B5CF6', icon: DollarSign, total: d.tokenUsageByDay?.reduce((s, p) => s + (p?.promptTokens ?? 0) + (p?.completionTokens ?? 0), 0) ?? 0 },
   ];
 
   return (

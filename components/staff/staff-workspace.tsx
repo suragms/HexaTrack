@@ -29,10 +29,12 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { BrandMark } from '@/components/ui/brand';
 import { hexaTrackApi } from '@/lib/api';
-import { money, shortDate } from '@/lib/format';
+import { money, shortDate, round } from '@/lib/format';
 import type { Account, Category, PagedResult, StaffDashboardDto, StaffNotification, StaffTask, Transaction, TransactionType } from '@/lib/types';
 import { useAuthStore } from '@/store/auth-store';
 import { motion } from 'framer-motion';
+import { showToast } from '@/components/ui/toast';
+import { AddTransactionSheet } from '@/components/transactions/add-transaction-sheet';
 
 type StaffView = 'dashboard' | 'transactions' | 'tasks' | 'reports' | 'notifications' | 'profile' | 'expenses' | 'income';
 type EntryType = Extract<TransactionType, 'Income' | 'Expense'>;
@@ -55,7 +57,7 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalType, setModalType] = useState<EntryType | null>(null);
+  const [modalType, setModalType] = useState<EntryType | 'Menu' | null>(null);
 
   useEffect(() => {
     if (hydrated && (!user || user.organizationRole?.toLowerCase() !== 'staff')) {
@@ -94,10 +96,48 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
 
   const handleLogout = () => { logout(); router.replace('/'); };
 
+  if (!user.branchId) {
+    return (
+      <div className="min-h-screen bg-[#050816] text-[#E1E2EC] flex flex-col font-sans">
+        {/* Header */}
+        <header className="shrink-0 flex items-center justify-between px-6 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
+          <div className="flex items-center gap-3">
+            <BrandMark tone="dark" className="h-6 w-auto" />
+            <span className="rounded-full border border-yellow-500/20 bg-yellow-500/5 px-2.5 py-0.5 text-[8px] font-black tracking-widest uppercase text-yellow-500">Security Guard</span>
+          </div>
+          <button 
+            onClick={handleLogout}
+            type="button"
+            className="h-10 px-4 rounded-xl border border-white/[0.05] bg-[#0E152B] hover:border-red-500/20 hover:text-red-400 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#C2C6D6] transition-all"
+          >
+            <LogOut size={14} /> Disconnect
+          </button>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 rounded-full bg-yellow-500/20 blur-xl scale-125" />
+            <div className="relative w-16 h-16 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-center text-yellow-500">
+              <Building2 size={32} />
+            </div>
+          </div>
+          <h2 className="text-xl font-black text-white tracking-tight">Branch Assignment Required</h2>
+          <p className="mt-3 text-xs text-[#C2C6D6] font-bold leading-relaxed uppercase tracking-wider">
+            Your staff account is currently active, but it has not been assigned to a physical branch workspace.
+          </p>
+          <p className="mt-2 text-xs text-[#C2C6D6]/60 leading-relaxed">
+            Please contact your organization administrator or owner to map your profile to an active branch node.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* ─── DESKTOP LAYOUT (xl+) ─── */}
-      <div className="fintech-clean hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
+      <div className="hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
         <StaffSidebar active={view} onNavigate={(href) => router.push(href)} onLogout={handleLogout} />
         <main className="min-w-0 flex-1 overflow-y-auto">
           <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#0B1020]/80 px-8 py-4.5 backdrop-blur-xl">
@@ -107,20 +147,20 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
                 <BranchIdentityBadge branchName={dashboard?.branchName ?? user.branchName} department={dashboard?.department ?? user.department} />
               </div>
               <StaffQuickActions 
-                onExpense={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }))} 
-                onIncome={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Income' } }))} 
+                onExpense={() => setModalType('Expense')} 
+                onIncome={() => setModalType('Income')} 
               />
             </div>
           </header>
           <section className="mx-auto max-w-7xl space-y-8 p-8 animate-in fade-in duration-500">
             {error ? <ErrorCard message={error} onRetry={load} /> : null}
-            {loading ? <StaffSkeleton /> : dashboard ? renderView(view, dashboard, transactions, setTransactions, (type) => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type } }))) : <EmptyState title="Node workspace not provisioned." action="Pending direct assignment from master owner." />}
+            {loading ? <StaffSkeleton /> : dashboard ? renderView(view, dashboard, transactions, setTransactions, setModalType) : <EmptyState title="Node workspace not provisioned." action="Pending direct assignment from master owner." />}
           </section>
         </main>
       </div>
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
-      <div className="fintech-clean md:hidden flex flex-col bg-[#F5F7F8] text-[#102A43] font-sans" style={{ height: '100dvh' }}>
+      <div className="md:hidden flex flex-col bg-[#F5F7F8] text-[#102A43] font-sans" style={{ height: '100dvh' }}>
         {/* Compact Mobile Header */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
           <div className="flex items-center gap-3 min-w-0">
@@ -160,18 +200,19 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
         >
           <section className="space-y-6">
             {error ? <ErrorCard message={error} onRetry={load} /> : null}
-            {loading ? <StaffSkeleton /> : dashboard ? renderView(view, dashboard, transactions, setTransactions, (type) => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type } }))) : <EmptyState title="Node workspace not provisioned." action="Pending direct assignment from master owner." />}
+            {loading ? <StaffSkeleton /> : dashboard ? renderView(view, dashboard, transactions, setTransactions, setModalType) : <EmptyState title="Node workspace not provisioned." action="Pending direct assignment from master owner." />}
           </section>
         </main>
 
         {/* ─── FIXED BOTTOM NAVIGATION ─── */}
         <div
-          className="fixed inset-x-0 bottom-0 z-50"
+          className="fixed inset-x-0 bottom-0 z-40"
           style={{
             background: 'rgba(5,8,22,0.92)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             borderTop: '1px solid rgba(255,255,255,0.05)',
+            touchAction: 'none',
           }}
         >
           <nav
@@ -196,7 +237,8 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
               <motion.button
                 whileTap={{ scale: 0.90 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                onClick={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }))}
+                onClick={() => setModalType('Menu')}
+                type="button"
                 className="relative z-10 flex items-center justify-center rounded-full overflow-hidden"
                 style={{
                   width: 68,
@@ -207,7 +249,13 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
                   border: '1.5px solid rgba(255,255,255,0.12)',
                 }}
               >
-                <Plus size={28} strokeWidth={2} className="text-white" />
+                <motion.div
+                  initial={false}
+                  animate={{ rotate: modalType !== null ? 45 : 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                >
+                  <Plus size={28} strokeWidth={2} className="text-white" />
+                </motion.div>
               </motion.button>
             </div>
             <StaffMobileNavItem
@@ -226,7 +274,18 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
         </div>
       </div>
 
-
+      {dashboard && (
+        <AddTransactionSheet
+          open={modalType !== null}
+          onOpenChange={(v) => { if (!v) setModalType(null); }}
+          defaultType={(modalType === 'Income' || modalType === 'Expense') ? modalType : undefined}
+          initialStep="menu"
+          isStaff={true}
+          overrideAccounts={dashboard.accounts}
+          overrideCategories={dashboard.categories}
+          onSaved={load}
+        />
+      )}
     </>
   );
 }
@@ -268,7 +327,7 @@ function renderView(
   dashboard: StaffDashboardDto,
   transactions: Transaction[],
   setTransactions: (transactions: Transaction[]) => void,
-  setModalType: (type: EntryType | null) => void,
+  setModalType: (type: EntryType | 'Menu' | null) => void,
 ) {
   if (view === 'dashboard') return <StaffDashboard dashboard={dashboard} transactions={transactions} setModalType={setModalType} />;
   if (view === 'transactions') return <StaffTransactionFeed transactions={transactions} categories={dashboard.categories} accounts={dashboard.accounts} onRefresh={setTransactions} />;
@@ -280,7 +339,7 @@ function renderView(
   return <StaffReports dashboard={dashboard} transactions={transactions} />;
 }
 
-export function StaffDashboard({ dashboard, transactions, setModalType }: { dashboard: StaffDashboardDto; transactions: Transaction[]; setModalType: (type: EntryType) => void }) {
+export function StaffDashboard({ dashboard, transactions, setModalType }: { dashboard: StaffDashboardDto; transactions: Transaction[]; setModalType: (type: EntryType | 'Menu' | null) => void }) {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <StaffWelcomeHero dashboard={dashboard} />
@@ -401,7 +460,7 @@ function TypeView({ type, dashboard, transactions, onAdd }: { type: EntryType; d
   const rows = transactions.filter((transaction) => transaction.type === type);
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <MetricCard label={`Accumulated ${type}`} value={money(rows.reduce((sum, item) => sum + item.amount, 0))} icon={type === 'Income' ? ArrowDownLeft : ArrowUpRight} tone={type === 'Income' ? 'success' : 'expense'} />
+      <MetricCard label={`Accumulated ${type}`} value={money(round(rows.reduce((sum, item) => round(sum + item.amount), 0)))} icon={type === 'Income' ? ArrowDownLeft : ArrowUpRight} tone={type === 'Income' ? 'success' : 'expense'} />
       {rows.length === 0 ? (
          <EmptyState title={`No active ${type.toLowerCase()} telemetry present.`} action={`Provision a new ${type.toLowerCase()} record.`} onAction={onAdd} />
       ) : (
@@ -532,17 +591,25 @@ function StaffTransactionModal({ type, dashboard, onClose, onSaved }: { type: En
     recurring: false
   });
 
+  useEffect(() => {
+    if (dashboard.accounts.length > 0 && !form.accountId) {
+      setForm((prev) => ({ ...prev, accountId: dashboard.accounts[0].id }));
+    }
+  }, [dashboard.accounts, form.accountId]);
+
   const isValid = form.amount && Number(form.amount) > 0 && form.accountId && form.categoryId;
 
   async function save() {
     if (!isValid) return;
     setSaving(true);
+    const chosenAccount = dashboard.accounts.find((a) => a.id === form.accountId);
+    const currencyCode = chosenAccount?.currency || 'INR';
     const payload = {
       accountId: form.accountId,
       categoryId: form.categoryId,
       type,
       amount: Number(form.amount),
-      currency: 'USD',
+      currency: currencyCode,
       merchant: form.merchant || undefined,
       note: form.note || undefined,
       occurredOn: form.occurredOn,
@@ -560,7 +627,7 @@ function StaffTransactionModal({ type, dashboard, onClose, onSaved }: { type: En
       onClose();
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Ingestion sequence halted.');
+      showToast('error', err instanceof Error ? err.message : 'Ingestion sequence halted.');
     } finally {
       setSaving(false);
     }

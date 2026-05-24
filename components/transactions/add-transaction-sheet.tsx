@@ -44,6 +44,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { hexaTrackApi } from '@/lib/api';
 import { showToast } from '@/components/ui/toast';
 import { notificationScheduler } from '@/lib/notifications';
+import { CreateWorkspaceModal } from '@/components/workspace/create-workspace-modal';
+import type { Workspace } from '@/lib/types';
 
 /* ── Category Icon Map ── */
 const catIconMap: Record<string, React.ElementType> = {
@@ -107,21 +109,31 @@ function getCatIcon(name: string): React.ElementType {
   return catIconMap.default;
 }
 
-type QuickAddStep = 'menu' | 'form' | 'create-category' | 'create-subcategory';
+type QuickAddStep = 'menu' | 'form' | 'create-category' | 'create-subcategory' | 'no-workspace';
 
 export function AddTransactionSheet({ 
   open, 
   onOpenChange,
   defaultType,
-  initialStep
+  initialStep,
+  isStaff = false,
+  overrideAccounts,
+  overrideCategories,
+  onSaved,
 }: { 
   open: boolean; 
   onOpenChange: (v: boolean) => void;
   defaultType?: TransactionType;
   initialStep?: QuickAddStep;
+  isStaff?: boolean;
+  overrideAccounts?: Account[];
+  overrideCategories?: Category[];
+  onSaved?: () => void;
 }) {
-  const accounts = useFinanceStore((s) => s.accounts);
-  const categories = useFinanceStore((s) => s.categories);
+  const storeAccounts = useFinanceStore((s) => s.accounts);
+  const storeCategories = useFinanceStore((s) => s.categories);
+  const accounts = overrideAccounts || storeAccounts;
+  const categories = overrideCategories || storeCategories;
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const clearFinanceError = useFinanceStore((s) => s.clearError);
   const loadWorkspace = useFinanceStore((s) => s.loadWorkspace);
@@ -133,8 +145,15 @@ export function AddTransactionSheet({
   const currencyCode = activeWorkspace?.currency || 'USD';
 
   // Quick-Add Steps: 'menu' -> 'form' (or 'create-category' directly from form)
-  const [step, setStep] = useState<QuickAddStep>('menu');
+  const resolvedInitialStep = (() => {
+    if (defaultType) return 'form';
+    if (initialStep) return initialStep;
+    if (!isStaff && !activeWorkspaceId) return 'no-workspace';
+    return 'menu';
+  })();
+  const [step, setStep] = useState<QuickAddStep>(resolvedInitialStep);
   const [type, setType] = useState<TransactionType>('Expense');
+  const [createWsOpen, setCreateWsOpen] = useState(false);
 
   // Form Fields
   const [amount, setAmount] = useState<string>('');
@@ -181,12 +200,20 @@ export function AddTransactionSheet({
 
   useEffect(() => {
     if (open) {
-      if (defaultType) setType(defaultType);
-      if (initialStep) setStep(initialStep);
+      if (defaultType) {
+        setType(defaultType);
+        setStep('form');
+      } else if (initialStep) {
+        setStep(initialStep);
+      } else if (!isStaff && !activeWorkspaceId) {
+        setStep('no-workspace');
+      } else {
+        setStep('menu');
+      }
     } else {
       resetForm();
     }
-  }, [open, defaultType, initialStep, resetForm]);
+  }, [open, defaultType, initialStep, resetForm, isStaff, activeWorkspaceId]);
 
   useEffect(() => {
     if (open && accounts.length > 0 && !selectedAccountId) {
@@ -285,7 +312,44 @@ export function AddTransactionSheet({
       return;
     }
 
-    // Workspace-ready guard
+    // Staff path: use staff-specific API endpoints
+    if (isStaff) {
+      setSubmitting(true);
+      setLocalError('');
+      try {
+        const chosenAccount = accounts.find((a) => a.id === selectedAccountId);
+        const staffCurrency = chosenAccount?.currency || currencyCode;
+        const payload = {
+          accountId: selectedAccountId || '00000000-0000-0000-0000-000000000000',
+          categoryId: selectedSubcategoryId || selectedCategoryId,
+          type,
+          amount: parsedAmount,
+          currency: staffCurrency,
+          merchant: merchant.trim() || undefined,
+          note: note.trim() || undefined,
+          occurredOn,
+          tagIds: [] as string[],
+          idempotencyKey: crypto.randomUUID(),
+        };
+        if (type === 'Income') await hexaTrackApi.staff.createIncome(payload);
+        else await hexaTrackApi.staff.createExpense(payload);
+
+        setSuccessFlash(true);
+        const toastLabel = type === 'Income' ? 'Income added' : 'Expense recorded';
+        showToast('success', `${toastLabel} of ${currencySymbol}${parsedAmount.toLocaleString()} successfully`);
+        onSaved?.();
+        setTimeout(() => onOpenChange(false), 1200);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Transaction persistence failed';
+        setLocalError(msg);
+        showToast('error', msg);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Standard user path: workspace-ready guard
     if (!activeWorkspaceId) {
       try {
         await useWorkspaceStore.getState().ensureActiveWorkspace();
@@ -353,6 +417,7 @@ export function AddTransactionSheet({
       setSuccessFlash(true);
       const toastLabel = type === 'Income' ? 'Income added' : 'Expense recorded';
       showToast('success', `${toastLabel} of ${currencySymbol}${parsedAmount.toLocaleString()} successfully`);
+      onSaved?.();
       setTimeout(() => onOpenChange(false), 1200);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Transaction persistence failed';
@@ -451,6 +516,60 @@ export function AddTransactionSheet({
                   <ChevronRight size={18} className="text-on-surface-variant/30 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
+            </motion.div>
+          )}
+
+          {/* ── STEP: NO WORKSPACE ── */}
+          {step === 'no-workspace' && (
+            <motion.div
+              key="no-workspace"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="px-6 pb-8 pt-2"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 id="quick-add-title" className="text-2xl font-black text-on-surface tracking-tight">Workspace Required</h3>
+                  <p className="text-xs text-on-surface-variant/50 font-semibold mt-1">Set up your financial workspace first</p>
+                </div>
+                <button
+                  onClick={() => onOpenChange(false)}
+                  className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center text-on-surface-variant hover:bg-white/[0.08] active:scale-90 transition-all shadow-sm"
+                  type="button"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center text-center py-6">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+                  <Briefcase size={28} className="text-amber-500" />
+                </div>
+                <h4 className="text-base font-black text-on-surface tracking-tight">Create Your Workspace</h4>
+                <p className="text-xs text-on-surface-variant/60 mt-2 max-w-[260px] leading-relaxed">
+                  You need an active workspace to record transactions. Create one now to get started with tracking your finances.
+                </p>
+                <button
+                  onClick={() => setCreateWsOpen(true)}
+                  className="mt-6 h-12 px-8 rounded-2xl bg-primary text-white text-sm font-black uppercase tracking-widest shadow-[0_8px_24px_rgba(16,185,129,0.35)] active:translate-y-0.5 active:shadow-none transition-all"
+                  type="button"
+                >
+                  Create Workspace
+                </button>
+              </div>
+
+              <CreateWorkspaceModal
+                open={createWsOpen}
+                onOpenChange={setCreateWsOpen}
+                onCreated={async (ws: Workspace) => {
+                  useWorkspaceStore.getState().setActiveWorkspaceId(ws.id);
+                  await useWorkspaceStore.getState().refreshWorkspaces();
+                  await loadWorkspace();
+                  setCreateWsOpen(false);
+                  setStep('menu');
+                }}
+              />
             </motion.div>
           )}
 

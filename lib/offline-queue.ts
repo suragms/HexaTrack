@@ -97,7 +97,8 @@ export const offlineQueue = {
           merchant: tx.merchant,
           note: tx.note,
           occurredOn: tx.occurredOn,
-          tagIds
+          tagIds,
+          idempotencyKey: tx.id,
         });
       } catch (err) {
         console.error(`Failed to sync transaction ${tx.id}`, err);

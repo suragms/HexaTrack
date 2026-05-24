@@ -82,6 +82,11 @@ builder.Services.AddCors(options =>
                     return true;
                 }
 
+                if (uri.Host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
                 return allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
             })
             .AllowAnyHeader()
@@ -340,22 +345,10 @@ app.UseAuthentication();
 app.UseMiddleware<WorkspaceContextMiddleware>();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.MapGet("/health", async (HexaTrackDbContext db) =>
-{
-    try
-    {
-        bool canConnect = await db.Database.CanConnectAsync();
-        if (!canConnect)
-        {
-            return Results.Json(new { status = "unhealthy", database = "disconnected", timestamp = DateTimeOffset.UtcNow }, statusCode: 503);
-        }
-        return Results.Ok(new { status = "healthy", database = "connected", timestamp = DateTimeOffset.UtcNow });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { status = "unhealthy", error = ex.Message, timestamp = DateTimeOffset.UtcNow }, statusCode: 503);
-    }
-});
+app.MapGet("/health", () => Results.Ok(new {
+    status = "ok",
+    time = DateTimeOffset.UtcNow
+}));
 app.MapGet("/api/health", async (HexaTrackDbContext db) =>
 {
     try

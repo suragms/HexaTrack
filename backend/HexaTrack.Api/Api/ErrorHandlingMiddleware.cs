@@ -19,6 +19,12 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
                 logger.LogError(exception, "Unhandled API error");
             }
 
+            if (context.Response.HasStarted)
+            {
+                logger.LogWarning("Response already started; cannot write error payload for: {Message}", exception.Message);
+                return;
+            }
+
             HttpStatusCode status = exception switch
             {
                 UnauthorizedAccessException => HttpStatusCode.Unauthorized,

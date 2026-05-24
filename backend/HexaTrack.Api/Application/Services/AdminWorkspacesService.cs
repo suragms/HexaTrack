@@ -15,6 +15,7 @@ public interface IAdminWorkspacesService
     Task AssignUserAsync(Guid workspaceId, AdminWorkspaceMemberRequest request, Guid actorUserId, CancellationToken cancellationToken);
     Task ChangeRoleAsync(Guid workspaceId, Guid userId, WorkspaceRole role, Guid actorUserId, CancellationToken cancellationToken);
     Task RemoveUserAsync(Guid workspaceId, Guid userId, Guid actorUserId, CancellationToken cancellationToken);
+    Task DeleteWorkspaceAsync(Guid workspaceId, Guid actorUserId, CancellationToken cancellationToken);
 }
 
 public sealed class AdminWorkspacesService(HexaTrackDbContext db, IAdminAuditService audit) : IAdminWorkspacesService
@@ -203,5 +204,59 @@ public sealed class AdminWorkspacesService(HexaTrackDbContext db, IAdminAuditSer
         await db.SaveChangesAsync(cancellationToken);
         await audit.LogAsync(actorUserId, "workspace.user_remove", "Workspace", workspaceId,
             JsonSerializer.Serialize(new { userId }), cancellationToken);
+    }
+
+    public async Task DeleteWorkspaceAsync(Guid workspaceId, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        Workspace workspace = await db.Workspaces.SingleOrDefaultAsync(w => w.Id == workspaceId, cancellationToken)
+            ?? throw new KeyNotFoundException("Workspace not found.");
+
+        // 1. Set WorkspaceId to null for any referencing Branches
+        var branches = await db.Branches.Where(b => b.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        foreach (var branch in branches)
+        {
+            branch.WorkspaceId = null;
+        }
+
+        // 2. Remove workspace feature toggles
+        var toggles = await db.WorkspaceFeatureToggles.Where(t => t.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.WorkspaceFeatureToggles.RemoveRange(toggles);
+
+        // 3. Remove workspace invites
+        var invites = await db.WorkspaceInvites.Where(i => i.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.WorkspaceInvites.RemoveRange(invites);
+
+        // 4. Remove transactions
+        var transactions = await db.Transactions.Where(t => t.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.Transactions.RemoveRange(transactions);
+
+        // 5. Remove recurring transactions
+        var recurring = await db.RecurringTransactions.Where(r => r.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.RecurringTransactions.RemoveRange(recurring);
+
+        // 6. Remove tags
+        var tags = await db.Tags.Where(t => t.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.Tags.RemoveRange(tags);
+
+        // 7. Remove categories
+        var categories = await db.Categories.Where(c => c.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.Categories.RemoveRange(categories);
+
+        // 8. Remove accounts
+        var accounts = await db.Accounts.Where(a => a.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.Accounts.RemoveRange(accounts);
+
+        // 9. Remove members
+        var members = await db.WorkspaceMembers.Where(m => m.WorkspaceId == workspaceId).ToListAsync(cancellationToken);
+        db.WorkspaceMembers.RemoveRange(members);
+
+        // 10. Remove workspace itself
+        db.Workspaces.Remove(workspace);
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        // Log audit
+        await audit.LogAsync(actorUserId, "workspace.delete", "Workspace", workspaceId,
+            JsonSerializer.Serialize(new { workspace.Name, workspace.Type, workspace.OwnerUserId }), cancellationToken);
     }
 }

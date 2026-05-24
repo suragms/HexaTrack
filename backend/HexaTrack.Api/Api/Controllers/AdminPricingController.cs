@@ -23,6 +23,13 @@ public sealed class AdminPricingController(IAdminPricingService pricingService) 
             request.Currency, request.TrialDays, request.MaxUsers, request.MaxBranches,
             request.MaxTransactionsPerMonth, request.IsActive, cancellationToken);
 
+    [HttpPut("{id:guid}")]
+    public Task<PricingConfiguration> Update(Guid id, [FromBody] UpdatePricingRequest request, CancellationToken cancellationToken)
+        => pricingService.UpsertAsync(
+            id, request.PlanName, request.MonthlyPrice, request.YearlyPrice,
+            request.Currency, request.TrialDays, request.MaxUsers, request.MaxBranches,
+            request.MaxTransactionsPerMonth, request.IsActive, cancellationToken);
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
@@ -33,6 +40,17 @@ public sealed class AdminPricingController(IAdminPricingService pricingService) 
 
 public sealed record UpsertPricingRequest(
     Guid? Id,
+    string PlanName,
+    decimal MonthlyPrice,
+    decimal YearlyPrice,
+    string Currency,
+    int TrialDays,
+    int MaxUsers,
+    int MaxBranches,
+    int MaxTransactionsPerMonth,
+    bool IsActive);
+
+public sealed record UpdatePricingRequest(
     string PlanName,
     decimal MonthlyPrice,
     decimal YearlyPrice,
