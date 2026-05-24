@@ -4,6 +4,7 @@ import { BarChart3, Bell, Clock3, History, Home, LogOut, Search, UserCircle, Wal
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { BrandMark } from '@/components/ui/brand';
 import { WorkspaceSwitcher } from '@/components/workspace/workspace-switcher';
+import { BranchSwitcher } from '@/components/branches/branch-switcher';
 import { useAuthStore } from '@/store/auth-store';
 
 export type ScreenKey = 'dashboard' | 'transaction' | 'history' | 'reports' | 'recurring' | 'wallets' | 'settings' | 'assistant';
@@ -30,6 +31,12 @@ type AppShellProps = {
 export function AppShell({ activeScreen, isTxSheetOpen = false, transactionCount, children, onAddTransaction, onNavigate }: AppShellProps) {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
+
+  const isOrgUser =
+    user?.organizationRole?.toLowerCase() === 'owner' ||
+    user?.organizationRole?.toLowerCase() === 'branchmanager' ||
+    user?.organizationRole?.toLowerCase() === 'staff' ||
+    user?.organizationRole?.toLowerCase() === 'superadmin';
 
   return (
     <>
@@ -69,9 +76,10 @@ export function AppShell({ activeScreen, isTxSheetOpen = false, transactionCount
         </aside>
 
         <main className="relative z-0 min-w-0 flex-1 overflow-y-auto">
-          <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 px-8 py-4 backdrop-blur-xl">
+          <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 px-8 py-4 backdrop-blur-xl">
             <div className="flex items-center gap-3">
               <WorkspaceSwitcher />
+              {isOrgUser && <BranchSwitcher />}
               <div className="ml-auto flex items-center gap-2">
                 <IconButton label="Search" icon={Search} />
                 <IconButton label="Notifications" icon={Bell} hasBadge />
@@ -94,6 +102,31 @@ export function AppShell({ activeScreen, isTxSheetOpen = false, transactionCount
           position: 'relative',
         }}
       >
+        <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 px-4 py-3 backdrop-blur-xl shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <BrandMark tone="light" className="h-6 w-auto shrink-0" />
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <div className="w-full max-w-[125px]">
+                  <WorkspaceSwitcher />
+                </div>
+                {isOrgUser && (
+                  <div className="w-full max-w-[125px]">
+                    <BranchSwitcher />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <IconButton label="Search" icon={Search} />
+              <IconButton label="Notifications" icon={Bell} hasBadge />
+              <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#10B981] to-[#059669] text-xs font-black text-white shadow-[0_6px_15px_rgba(16,185,129,0.25)]">
+                {(user?.displayName ?? 'U').charAt(0).toUpperCase()}
+              </div>
+            </div>
+          </div>
+        </header>
+
         <main
           className="w-full"
           style={{

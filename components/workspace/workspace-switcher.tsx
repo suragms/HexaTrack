@@ -63,26 +63,26 @@ export function WorkspaceSwitcher() {
         <button
           aria-expanded={menuOpen}
           aria-haspopup="listbox"
-          className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-[18px] border border-white/[0.06] bg-[#121A22] px-3 py-2.5 text-left text-sm font-medium text-[#F5F7FA] transition hover:bg-white/[0.04]"
+          className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-[18px] border border-gray-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-[#111827] shadow-sm transition hover:bg-gray-50/50 hover:border-gray-300 focus:outline-none"
           onClick={() => setMenuOpen((open) => !open)}
           type="button"
         >
           <span className="flex min-w-0 flex-1 items-center gap-2">
-            <Layers aria-hidden className="h-[18px] w-[18px] shrink-0 text-[#8B9BB4]" />
+            <Layers aria-hidden className="h-[18px] w-[18px] shrink-0 text-[#10B981]" />
             <span className="truncate">{active?.name ?? 'Workspace'}</span>
           </span>
-          <ChevronDown aria-hidden className={`h-[18px] w-[18px] shrink-0 text-[#8B9BB4] transition ${menuOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown aria-hidden className={`h-[18px] w-[18px] shrink-0 text-gray-400 transition ${menuOpen ? 'rotate-180' : ''}`} />
         </button>
 
         {menuOpen ? (
           <div
-            className="absolute left-0 right-0 top-[calc(100%+8px)] z-[45] max-h-[min(320px,70vh)] overflow-auto rounded-2xl border border-white/[0.06] bg-[#121A22] py-2 shadow-[0_20px_50px_rgba(0,0,0,0.45)]"
+            className="absolute left-0 right-0 top-[calc(100%+8px)] z-[45] max-h-[min(320px,70vh)] overflow-auto rounded-2xl border border-gray-200 bg-white py-2 shadow-[0_12px_30px_rgba(0,0,0,0.08)]"
             role="listbox"
           >
             {workspaces.map((w) => (
               <button
-                className={`flex w-full min-h-[44px] items-center px-4 py-3 text-left text-sm ${
-                  w.id === activeWorkspaceId ? 'bg-[#4F8CFF]/15 font-medium text-[#4F8CFF]' : 'text-[#F5F7FA] hover:bg-white/[0.04]'
+                className={`flex w-full min-h-[44px] items-center px-4 py-3 text-left text-sm transition-colors ${
+                  w.id === activeWorkspaceId ? 'bg-[#10B981]/10 font-bold text-[#10B981]' : 'text-[#374151] hover:bg-gray-50'
                 }`}
                 key={w.id}
                 onClick={() => handleSelect(w.id)}
@@ -91,12 +91,12 @@ export function WorkspaceSwitcher() {
                 type="button"
               >
                 <span className="truncate">{w.name}</span>
-                {w.isDefault ? <span className="ml-2 shrink-0 text-xs text-[#8B9BB4]">Default</span> : null}
+                {w.isDefault ? <span className="ml-2 shrink-0 text-xs text-gray-400">Default</span> : null}
               </button>
             ))}
-            <div className="my-2 border-t border-white/[0.06]" />
+            <div className="my-2 border-t border-gray-100" />
             <button
-              className="flex w-full min-h-[44px] items-center gap-2 px-4 py-3 text-left text-sm font-medium text-[#4F8CFF] hover:bg-white/[0.04]"
+              className="flex w-full min-h-[44px] items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-[#10B981] transition-colors hover:bg-emerald-50/50"
               onClick={() => {
                 setMenuOpen(false);
                 setCreateOpen(true);

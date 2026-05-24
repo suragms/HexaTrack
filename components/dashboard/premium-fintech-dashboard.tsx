@@ -103,39 +103,8 @@ export function PremiumFintechDashboard({ roleLabel = 'Individual', onAddTransac
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:py-8"
+        className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:py-6"
       >
-        <motion.header
-          variants={itemVariants}
-          className="sticky top-0 z-30 -mx-4 border-b border-white/[0.06] bg-[#0B1015]/90 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:border-0 lg:bg-transparent lg:px-0 lg:py-0"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#121A22] shadow-[0_10px_30px_rgba(0,0,0,0.3)] border border-white/[0.06]">
-                <BrandMark tone="dark" className="h-6 w-auto" />
-              </div>
-              <div className="flex flex-col md:flex-row md:items-center gap-2 min-w-0 flex-1">
-                <div className="w-full max-w-[200px]">
-                  <WorkspaceSwitcher />
-                </div>
-                {isOrgUser && (
-                  <div className="w-full max-w-[200px]">
-                    <BranchSwitcher />
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <IconButton label="Search" icon={Search} />
-                <IconButton label="Notifications" icon={Bell} hasBadge />
-              </div>
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#4F8CFF] to-[#1FD18B] text-sm font-black text-white shadow-[0_8px_20px_rgba(79,140,255,0.25)]">
-                {(user?.displayName ?? 'U').charAt(0).toUpperCase()}
-              </div>
-            </div>
-          </div>
-        </motion.header>
 
         <motion.section
           variants={itemVariants}
