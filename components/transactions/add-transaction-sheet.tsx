@@ -7,13 +7,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
-  Landmark,
   Repeat,
   Tag,
-  Wallet as WalletIcon,
   X,
-  Banknote,
   ShoppingBag,
   Car,
   Zap,
@@ -29,7 +25,6 @@ import {
   Users,
   RefreshCw,
   Star,
-  Camera,
   Plus,
   Palette,
   Coffee,
@@ -101,13 +96,7 @@ const colorPalette = [
   { hex: '#F97316', name: 'Orange' }
 ];
 
-function getCatIcon(name: string): React.ElementType {
-  const l = name.toLowerCase();
-  for (const k in catIconMap) {
-    if (l.includes(k)) return catIconMap[k];
-  }
-  return catIconMap.default;
-}
+
 
 type QuickAddStep = 'menu' | 'form' | 'create-category' | 'create-subcategory' | 'no-workspace';
 

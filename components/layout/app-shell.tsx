@@ -28,7 +28,7 @@ type AppShellProps = {
   onAddTransaction: () => void;
 };
 
-export function AppShell({ activeScreen, isTxSheetOpen = false, transactionCount: _transactionCount, children, onAddTransaction, onNavigate }: AppShellProps) {
+export function AppShell({ activeScreen, isTxSheetOpen = false, children, onAddTransaction, onNavigate }: AppShellProps) {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
 

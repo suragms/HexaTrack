@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, ArrowUpRight, ArrowDownLeft, Landmark, X } from 'lucide-react';
+import { Plus, ArrowUpRight, ArrowDownLeft, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
 import { usePathname } from 'next/navigation';

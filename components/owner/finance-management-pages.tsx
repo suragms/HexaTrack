@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   CreditCard,
   Download,
-  FileText,
   History,
   Home,
   Loader2,
@@ -40,8 +39,7 @@ import { AddTransactionSheet } from '@/components/transactions/add-transaction-s
 type FinanceKind = 'income' | 'expenses' | 'accounts' | 'transactions' | 'analytics' | 'ledger' | 'categories';
 type TxFormType = Extract<TransactionType, 'Income' | 'Expense'>;
 
-const incomeDefaults = ['Sales', 'Client Payment', 'Salary', 'Investment', 'Refund', 'Commission', 'Rental', 'Interest', 'Bonus', 'Other Income'];
-const expenseDefaults = ['Food', 'Travel', 'Salary', 'Bills', 'Utilities', 'Marketing', 'Cloud Services', 'Office', 'Hardware', 'Software', 'Maintenance', 'Fuel', 'Healthcare', 'Tax', 'Rent', 'Subscription', 'Miscellaneous'];
+
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -822,11 +820,7 @@ export function QuickTransactionModal({ type, onClose }: { type: TxFormType; onC
   );
 }
 
-async function ensureDefaultCategories(type: TxFormType, existing: Category[]) {
-  if (existing.length > 0) return;
-  const names = type === 'Income' ? incomeDefaults : expenseDefaults;
-  await Promise.all(names.map((name) => hexaTrackApi.categories.create({ name, type, parentCategoryId: null, color: type === 'Income' ? '#22C55E' : '#FF5C75', icon: type === 'Income' ? 'ArrowDownLeft' : 'ArrowUpRight' }).catch(() => null)));
-}
+
 
 function AccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({ name: '', type: 'Bank' as Account['type'], currency: 'USD', openingBalance: '0' });

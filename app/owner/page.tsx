@@ -10,7 +10,7 @@ import { TransactionType } from '@/lib/types';
 import { BrandMark } from '@/components/ui/brand';
 import { 
   LayoutDashboard, Users, Settings, LogOut, Bell, Search, 
-  Building2, Network, Briefcase, TrendingUp, CreditCard, History, 
+  Network, Briefcase, TrendingUp, CreditCard, History, 
   PieChart, RefreshCcw, DollarSign, Wallet, Plus, ShieldAlert, ArrowUpRight, Tag,
   BarChart3, Home
 } from 'lucide-react';
@@ -47,7 +47,7 @@ export default function OwnerDashboard() {
 
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const loadFinanceWorkspace = useFinanceStore((s) => s.loadWorkspace);
-  const { loading, error, clearError } = useFinanceStore();
+  const { error, clearError } = useFinanceStore();
 
   useEffect(() => {
     if (hydrated) {

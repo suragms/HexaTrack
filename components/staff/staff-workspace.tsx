@@ -1,8 +1,5 @@
 'use client';
 
-import { AccountSelector, CategorySelector, PaymentMethodSelector } from '@/components/finance/finance-selectors';
-import { useQueryClient } from '@tanstack/react-query';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,7 +13,6 @@ import {
   FileText,
   Inbox,
   LayoutDashboard,
-  Loader2,
   LogOut,
   Plus,
   Receipt,
@@ -24,7 +20,6 @@ import {
   Search,
   UserCircle,
   Wallet,
-  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { BrandMark } from '@/components/ui/brand';
@@ -33,7 +28,6 @@ import { money, shortDate, round } from '@/lib/format';
 import type { Account, Category, PagedResult, StaffDashboardDto, StaffNotification, StaffTask, Transaction, TransactionType } from '@/lib/types';
 import { useAuthStore } from '@/store/auth-store';
 import { motion } from 'framer-motion';
-import { showToast } from '@/components/ui/toast';
 import { AddTransactionSheet } from '@/components/transactions/add-transaction-sheet';
 
 type StaffView = 'dashboard' | 'transactions' | 'tasks' | 'reports' | 'notifications' | 'profile' | 'expenses' | 'income';
@@ -591,174 +585,7 @@ export function BranchIdentityBadge({ branchName, department }: { branchName?: s
   );
 }
 
-function StaffTransactionModal({ type, dashboard, onClose, onSaved }: { type: EntryType; dashboard: StaffDashboardDto; onClose: () => void; onSaved: () => void }) {
-  const queryClient = useQueryClient();
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    amount: '',
-    accountId: '',
-    categoryId: '',
-    merchant: '',
-    note: '',
-    occurredOn: new Date().toISOString().slice(0, 10),
-    receiptName: '',
-    recurring: false
-  });
 
-  useEffect(() => {
-    if (dashboard.accounts.length > 0 && !form.accountId) {
-      setForm((prev) => ({ ...prev, accountId: dashboard.accounts[0].id }));
-    }
-  }, [dashboard.accounts, form.accountId]);
-
-  const isValid = form.amount && Number(form.amount) > 0 && form.accountId && form.categoryId;
-
-  async function save() {
-    if (!isValid) return;
-    setSaving(true);
-    const chosenAccount = dashboard.accounts.find((a) => a.id === form.accountId);
-    const currencyCode = chosenAccount?.currency || 'INR';
-    const payload = {
-      accountId: form.accountId,
-      categoryId: form.categoryId,
-      type,
-      amount: Number(form.amount),
-      currency: currencyCode,
-      merchant: form.merchant || undefined,
-      note: form.note || undefined,
-      occurredOn: form.occurredOn,
-      tagIds: [],
-      idempotencyKey: crypto.randomUUID()
-    };
-    try {
-      if (type === 'Income') await hexaTrackApi.staff.createIncome(payload);
-      else await hexaTrackApi.staff.createExpense(payload);
-      
-      await queryClient.invalidateQueries({ queryKey: ['accounts', 'available'] });
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      
-      onSaved();
-      onClose();
-    } catch (err) {
-      console.error(err);
-      showToast('error', err instanceof Error ? err.message : 'Ingestion sequence halted.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[999] flex items-end justify-center bg-black/80 backdrop-blur-md md:items-center md:p-4 animate-in fade-in duration-300">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative w-full max-w-xl rounded-t-[28px] md:rounded-[28px] border border-white/[0.06] bg-[#050816] p-6 md:p-7 shadow-2xl scale-in duration-300">
-        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-cyan/30 to-transparent" />
-        
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-             <div className={`w-2 h-4 rounded-full ${type === 'Income' ? 'bg-emerald shadow-[0_0_8px_#10B981]' : 'bg-danger shadow-[0_0_8px_#EF4444]'}`} />
-             <h2 className="text-lg font-black tracking-wide text-on-surface font-sans">Ingest {type} Telemetry</h2>
-          </div>
-          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl bg-[#0E152B] border border-white/[0.04] text-on-surface-variant hover:text-cyan active:scale-90 transition-all">
-            <X className="h-4.5 w-4.5" />
-          </button>
-        </div>
-        
-        <div className="grid gap-4.5 md:grid-cols-2">
-          <InputField label="Metric Weight (Amount)">
-            <input 
-              className="input-finance w-full text-[15px] font-mono-data font-extrabold text-cyan py-3 tracking-tight h-[52px]" 
-              type="number" 
-              min="0.01" 
-              step="0.01" 
-              placeholder="0.00"
-              value={form.amount} 
-              onChange={(e) => setForm({ ...form, amount: e.target.value })} 
-            />
-          </InputField>
-          <InputField label="Source Cluster (Account)">
-            <div className="h-[52px]">
-              <AccountSelector 
-                value={form.accountId} 
-                onChange={(val) => setForm({ ...form, accountId: val })} 
-              />
-            </div>
-          </InputField>
-          <InputField label="Operational Sector (Category)">
-            <div className="h-[52px]">
-              <CategorySelector 
-                type={type} 
-                value={form.categoryId} 
-                onChange={(val) => setForm({ ...form, categoryId: val })} 
-              />
-            </div>
-          </InputField>
-          <InputField label={type === 'Expense' ? 'Ingestion Target' : 'Transfer Method'}>
-            {type === 'Expense' ? (
-              <input 
-                className="input-finance w-full h-[52px]" 
-                placeholder="Destination entity..." 
-                value={form.merchant} 
-                onChange={(e) => setForm({ ...form, merchant: e.target.value })} 
-              />
-            ) : (
-              <div className="h-[52px]">
-                 <PaymentMethodSelector 
-                   value={form.merchant} 
-                   onChange={(val) => setForm({ ...form, merchant: val })} 
-                 />
-              </div>
-            )}
-          </InputField>
-          <InputField label="Temporal Signature (Date)">
-            <input 
-              className="input-finance w-full h-[52px] text-xs uppercase tracking-wider font-label-caps font-black text-cyan cursor-pointer" 
-              type="date" 
-              value={form.occurredOn} 
-              onChange={(e) => setForm({ ...form, occurredOn: e.target.value })} 
-            />
-          </InputField>
-          <div className="flex h-[52px] items-end pb-0.5">
-             <label className="flex items-center gap-3 rounded-[18px] border border-white/[0.04] bg-[#0E152B] px-4 h-full w-full text-[10px] font-black uppercase font-label-caps tracking-widest text-on-surface-variant hover:border-white/[0.08] cursor-pointer transition-all group shadow-inner select-none">
-               <input 
-                 type="checkbox" 
-                 checked={form.recurring} 
-                 onChange={(e) => setForm({ ...form, recurring: e.target.checked })} 
-                 className="rounded focus:ring-0 accent-cyan text-cyan border-white/[0.1] bg-transparent w-4 h-4"
-               /> 
-               <span>Auto Loop Flux</span>
-             </label>
-          </div>
-          {type === 'Expense' ? (
-            <InputField label="Encrypted Verification (Receipt)">
-              <input 
-                className="input-finance w-full h-[52px] pt-3 text-[9px] font-black tracking-widest font-label-caps uppercase file:hidden hover:border-white/[0.1] cursor-pointer" 
-                type="file" 
-                accept="image/*,.pdf" 
-                onChange={(e) => setForm({ ...form, receiptName: e.target.files?.[0]?.name ?? '' })} 
-              />
-            </InputField>
-          ) : null}
-          <InputField label="Static Ledger Notes">
-            <input 
-              className="input-finance w-full h-[52px]" 
-              placeholder="Telemetry footnotes..." 
-              value={form.note} 
-              onChange={(e) => setForm({ ...form, note: e.target.value })} 
-            />
-          </InputField>
-        </div>
-        
-        <button 
-          disabled={saving || !isValid} 
-          onClick={save} 
-          className={`mt-8 h-[56px] w-full rounded-full text-[10px] font-black tracking-widest uppercase font-label-caps transition-all select-none border shadow-lg active:scale-[0.99] ${isValid ? 'bg-primary hover:brightness-105 shadow-primary/20 border-white/[0.1] text-white' : 'bg-white/[0.05] text-on-surface-variant border-white/[0.02] cursor-not-allowed opacity-50'}`}
-        >
-          {saving ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-white" /> : `Execute ${type} Ingestion`}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function TransactionList({ transactions, categories, accounts }: { transactions: Transaction[]; categories: Category[]; accounts: Account[] }) {
   return (
@@ -842,16 +669,7 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InputField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-[9px] font-black uppercase tracking-widest font-label-caps text-on-surface-variant opacity-75 select-none">
-      {label}
-      <div className="mt-2 normal-case tracking-normal font-sans">
-         {children}
-      </div>
-    </label>
-  );
-}
+
 
 function EmptyState({ title, action, onAction }: { title: string; action: string; onAction?: () => void }) {
   return (
