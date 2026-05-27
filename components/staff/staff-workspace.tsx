@@ -137,10 +137,10 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
   return (
     <>
       {/* ─── DESKTOP LAYOUT (xl+) ─── */}
-      <div className="hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
+      <div className="hidden md:flex min-h-screen bg-[#0F172A] text-[#F8FAFC] font-sans selection:bg-[#6C63FF]/20">
         <StaffSidebar active={view} onNavigate={(href) => router.push(href)} onLogout={handleLogout} />
         <main className="min-w-0 flex-1 overflow-y-auto">
-          <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#0B1020]/80 px-8 py-4.5 backdrop-blur-xl">
+          <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#0F172A]/80 px-8 py-4.5 backdrop-blur-xl">
             <div className="mx-auto flex max-w-7xl items-center justify-between">
               <div className="flex items-center gap-4">
                 <BrandMark tone="dark" />
@@ -160,12 +160,12 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
       </div>
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
-      <div className="md:hidden flex flex-col bg-[#F5F7F8] text-[#102A43] font-sans" style={{ height: '100dvh' }}>
+      <div className="md:hidden flex flex-col bg-[#0F172A] text-[#F8FAFC] font-sans" style={{ height: '100dvh' }}>
         {/* Compact Mobile Header */}
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
           <div className="flex items-center gap-3 min-w-0">
             <BrandMark tone="dark" className="h-6 w-auto shrink-0" />
-            <span className="rounded-full border border-[#10B981]/20 bg-[#10B981]/5 px-2.5 py-0.5 text-[8px] font-black tracking-widest uppercase text-[#10B981] shrink-0">Staff</span>
+            <span className="rounded-full border border-[#00D4FF]/20 bg-[#00D4FF]/5 px-2.5 py-0.5 text-[8px] font-black tracking-widest uppercase text-[#00D4FF] shrink-0">Staff</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -173,7 +173,7 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
               className="h-10 w-10 rounded-xl border border-white/[0.05] bg-[#0E152B] flex items-center justify-center text-[#C2C6D6] relative shrink-0"
             >
               <Bell size={16} />
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[#00D4FF] animate-pulse" />
             </button>
             <button 
               onClick={handleLogout}
@@ -181,7 +181,7 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
             >
               <LogOut size={16} />
             </button>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white text-xs font-bold border border-white/[0.1] shrink-0">
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#00D4FF] flex items-center justify-center text-white text-xs font-bold border border-white/[0.1] shrink-0">
               {user.displayName?.charAt(0).toUpperCase() || 'S'}
             </div>
           </div>
@@ -206,18 +206,18 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
 
         {/* ─── FIXED BOTTOM NAVIGATION ─── */}
         <div
-          className="fixed inset-x-0 bottom-0 z-40"
+          className="fixed inset-x-0 bottom-0 z-[100] pointer-events-none"
           style={{
-            background: 'rgba(5,8,22,0.92)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderTop: '1px solid rgba(255,255,255,0.05)',
-            touchAction: 'none',
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.3)',
           }}
         >
           <nav
-            className="mx-auto w-full max-w-md grid grid-cols-5 items-end select-none"
-            style={{ height: 82, paddingBottom: 'env(safe-area-inset-bottom)' }}
+            className="mx-auto w-full max-w-md grid grid-cols-5 items-end select-none pointer-events-auto"
+            style={{ height: 78, paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <StaffMobileNavItem
               active={view === 'dashboard'}
@@ -232,21 +232,32 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
               onClick={() => router.push('/staff/reports')}
             />
             {/* Center FAB */}
-            <div className="relative flex items-center justify-center" style={{ height: 82 }}>
-              <div className="absolute rounded-full pointer-events-none" style={{ width: 68, height: 68, background: 'rgba(16,185,129,0.25)', filter: 'blur(14px)', top: '50%', left: '50%', transform: 'translate(-50%, -54%)' }} />
+            <div className="relative flex items-center justify-center pointer-events-none" style={{ height: 78 }}>
+              {/* Enhanced Soft Glow */}
+              <div
+                className="absolute rounded-full pointer-events-none"
+                style={{
+                  width: 68, height: 68,
+                  background: 'rgba(108, 99, 255, 0.2)',
+                  filter: 'blur(16px)',
+                  top: '50%', left: '50%',
+                  transform: 'translate(-50%, -58%)',
+                }}
+              />
               <motion.button
-                whileTap={{ scale: 0.90 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                aria-label="Add Transaction Menu"
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: 'spring', stiffness: 600, damping: 25 }}
                 onClick={() => setModalType('Menu')}
                 type="button"
-                className="relative z-10 flex items-center justify-center rounded-full overflow-hidden"
+                className="fixed left-1/2 z-50 flex -translate-x-1/2 items-center justify-center rounded-full overflow-hidden group pointer-events-auto"
                 style={{
                   width: 68,
                   height: 68,
-                  marginBottom: 10,
-                  background: 'linear-gradient(145deg, #34D399 0%, #10B981 50%, #059669 100%)',
-                  boxShadow: '0 8px 24px rgba(16,185,129,0.45), 0 2px 8px rgba(0,0,0,0.4)',
-                  border: '1.5px solid rgba(255,255,255,0.12)',
+                  bottom: 'calc(28px + env(safe-area-inset-bottom))',
+                  background: 'linear-gradient(135deg, #6C63FF 0%, #00D4FF 100%)',
+                  boxShadow: '0 10px 30px rgba(108, 99, 255, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.2)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.2)',
                 }}
               >
                 <motion.div
@@ -254,8 +265,11 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
                   animate={{ rotate: modalType !== null ? 45 : 0 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 >
-                  <Plus size={28} strokeWidth={2} className="text-white" />
+                  <Plus size={28} strokeWidth={2.5} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)]" />
                 </motion.div>
+                
+                {/* Glossy Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/20 pointer-events-none" />
               </motion.button>
             </div>
             <StaffMobileNavItem
@@ -293,10 +307,10 @@ export function StaffWorkspace({ view }: { view: StaffView }) {
 function StaffSidebar({ active, onNavigate, onLogout }: { active: StaffView; onNavigate: (href: string) => void; onLogout: () => void }) {
   return (
     <aside className="hidden h-screen w-[270px] shrink-0 flex-col border-r border-white/[0.04] bg-[#0E152B]/40 p-5 backdrop-blur-md xl:flex relative">
-      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan/20 to-transparent" />
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#00D4FF]/20 to-transparent" />
       <div className="mb-8 mt-2 flex h-12 items-center gap-3 px-3">
         <BrandMark tone="dark" />
-        <span className="rounded-full border border-cyan/20 bg-[#0E152B] px-3 py-1 text-[9px] font-black font-label-caps tracking-widest uppercase text-cyan shadow-[0_0_8px_rgba(16,185,129,0.15)]">Staff</span>
+        <span className="rounded-full border border-cyan/20 bg-[#0E152B] px-3 py-1 text-[9px] font-black font-label-caps tracking-widest uppercase text-cyan shadow-[0_0_8px_rgba(0,212,255,0.15)]">Staff</span>
       </div>
       <nav className="flex-1 space-y-1.5">
         {navItems.map((item) => {
@@ -308,7 +322,7 @@ function StaffSidebar({ active, onNavigate, onLogout }: { active: StaffView; onN
               onClick={() => onNavigate(item.href)} 
               className={`flex h-[46px] w-full items-center gap-3.5 rounded-[18px] px-4 text-xs font-bold transition-all duration-200 relative group ${isCurrent ? 'text-cyan font-black bg-[#0E152B] border border-white/[0.04] shadow-sm' : 'text-on-surface-variant hover:bg-[#0E152B]/40 hover:text-on-surface'}`}
             >
-              {isCurrent && <div className="absolute left-2 w-1 h-4 rounded-full bg-cyan shadow-[0_0_6px_#10B981]" />}
+              {isCurrent && <div className="absolute left-2 w-1 h-4 rounded-full bg-cyan shadow-[0_0_6px_#00D4FF]" />}
               <Icon className={`h-4 w-4 flex-shrink-0 ${isCurrent ? 'text-cyan animate-pulse ml-1.5' : 'group-hover:scale-105 transition-transform'}`} />
               <span className={isCurrent ? 'ml-1 tracking-wide' : 'tracking-wide'}>{item.label}</span>
             </button>
@@ -889,23 +903,23 @@ function StaffMobileNavItem({ active, icon: Icon, label, onClick }: { active: bo
       type="button"
       onClick={onClick}
       whileTap={{ scale: 0.92 }}
-      className="relative flex flex-col items-center justify-end gap-1.5 w-full h-full pb-[10px] outline-none"
+      className="relative flex flex-col items-center justify-end gap-1.5 w-full h-full pb-[10px] outline-none pointer-events-auto"
     >
       {active && (
         <motion.div
           layoutId="staff-nav-indicator"
           className="absolute top-0 inset-x-3 h-[2px] rounded-b-full"
-          style={{ background: '#10B981', boxShadow: '0 2px 8px #10B981' }}
+          style={{ background: '#6C63FF', boxShadow: '0 2px 8px rgba(108, 99, 255, 0.4)' }}
           transition={{ type: 'spring', stiffness: 450, damping: 32 }}
         />
       )}
       <motion.div
         animate={{ y: active ? -1 : 0 }}
-        style={{ color: active ? '#E1E2EC' : '#C2C6D6' }}
+        style={{ color: active ? '#6C63FF' : '#CBD5E1' }}
       >
-        <Icon size={22} strokeWidth={1.75} style={active ? { filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.5))' } : undefined} />
+        <Icon size={22} strokeWidth={1.75} style={active ? { filter: 'drop-shadow(0 0 6px rgba(108,99,255,0.5))' } : undefined} />
       </motion.div>
-      <span className="leading-none font-medium" style={{ fontSize: 11, color: active ? '#E1E2EC' : '#C2C6D6' }}>
+      <span className="leading-none font-medium" style={{ fontSize: 11, color: active ? '#6C63FF' : '#CBD5E1' }}>
         {label}
       </span>
     </motion.button>

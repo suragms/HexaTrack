@@ -128,12 +128,12 @@ export default function OwnerDashboard() {
       {/* Dynamic Shared Components */}
 
       {/* ─── DESKTOP LAYOUT (md+) ─── */}
-      <div className="hidden md:flex min-h-screen bg-[#F5F7F8] text-[#102A43] font-sans selection:bg-[#0F9D8A]/20">
+      <div className="hidden md:flex min-h-screen bg-[#0F172A] text-[#F8FAFC] font-sans selection:bg-[#6C63FF]/20">
         {/* Desktop Sidebar */}
         <aside className="w-[280px] border-r border-white/[0.05] bg-[#0B1015] flex flex-col sticky top-0 h-screen">
           <div className="h-20 flex items-center px-7 border-b border-white/[0.04]">
             <BrandMark tone="dark" />
-            <div className="ml-3 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black tracking-widest uppercase">Owner</div>
+            <div className="ml-3 px-2 py-0.5 rounded bg-[#6C63FF]/10 text-[#6C63FF] border border-[#6C63FF]/20 text-[9px] font-black tracking-widest uppercase">Owner</div>
           </div>
 
           <div className="flex-1 py-6 px-3 space-y-1 overflow-y-auto custom-scrollbar pb-20">
@@ -238,7 +238,7 @@ export default function OwnerDashboard() {
 
       {/* ─── MOBILE LAYOUT (below md) ─── */}
       <div
-        className="mx-auto md:hidden flex w-full max-w-[430px] flex-col bg-[#F5F7F8] text-[#102A43] font-sans"
+        className="mx-auto md:hidden flex w-full max-w-[430px] flex-col bg-[#0F172A] text-[#F8FAFC] font-sans"
         style={{
           minHeight: '100dvh',
           overflowX: 'hidden',
@@ -251,13 +251,13 @@ export default function OwnerDashboard() {
         <header className="shrink-0 flex items-center justify-between px-4 bg-[#050816]/90 backdrop-blur-xl border-b border-white/[0.05]" style={{ height: 72 }}>
           <div className="flex items-center gap-3 min-w-0">
             <BrandMark tone="dark" className="h-6 w-auto shrink-0" />
-            <div className="px-2 py-0.5 rounded-full bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20 text-[8px] font-black tracking-widest uppercase shrink-0">Owner</div>
+            <div className="px-2 py-0.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF] border border-[#6C63FF]/20 text-[8px] font-black tracking-widest uppercase shrink-0">Owner</div>
           </div>
           <div className="flex items-center gap-2">
             <BranchSwitcher />
             <button className="h-10 w-10 rounded-xl border border-white/[0.05] bg-[#0E152B] flex items-center justify-center text-[#C2C6D6] relative shrink-0">
               <Bell size={16} />
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[#00D4FF] animate-pulse" />
             </button>
             <button 
               onClick={handleLogout}
@@ -265,7 +265,7 @@ export default function OwnerDashboard() {
             >
               <LogOut size={16} />
             </button>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center text-white text-xs font-bold border border-white/[0.1] shrink-0">
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#00D4FF] flex items-center justify-center text-white text-xs font-bold border border-white/[0.1] shrink-0">
               {user.displayName?.charAt(0).toUpperCase() || 'O'}
             </div>
           </div>
@@ -305,17 +305,16 @@ export default function OwnerDashboard() {
 
         {/* ─── FIXED BOTTOM NAVIGATION ─── */}
         <div
-          className="fixed inset-x-0 bottom-0 z-40 pointer-events-auto"
+          className="fixed inset-x-0 bottom-0 z-[100] pointer-events-none"
           style={{
-            background: 'rgba(5,8,22,0.92)',
+            background: 'rgba(15, 23, 42, 0.85)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
-            borderTop: '1px solid rgba(255,255,255,0.05)',
-            touchAction: 'none',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
           }}
         >
           <nav
-            className="mx-auto w-full max-w-md grid grid-cols-5 items-end select-none"
+            className="mx-auto w-full max-w-md grid grid-cols-5 items-end select-none pointer-events-auto"
             style={{ height: 82, paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <OwnerNavItem
@@ -331,8 +330,8 @@ export default function OwnerDashboard() {
               onClick={() => setActiveTab('reports')}
             />
             {/* Center FAB */}
-            <div className="relative flex items-center justify-center" style={{ height: 82, pointerEvents: 'none' }}>
-              <div className="absolute rounded-full pointer-events-none" style={{ width: 68, height: 68, background: 'rgba(16,185,129,0.25)', filter: 'blur(14px)', top: '50%', left: '50%', transform: 'translate(-50%, -54%)' }} />
+            <div className="relative flex items-center justify-center pointer-events-none" style={{ height: 82 }}>
+              <div className="absolute rounded-full pointer-events-none" style={{ width: 68, height: 68, background: 'rgba(108, 99, 255, 0.2)', filter: 'blur(14px)', top: '50%', left: '50%', transform: 'translate(-50%, -54%)' }} />
               <motion.button
                 whileTap={{ scale: 0.90 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -344,8 +343,8 @@ export default function OwnerDashboard() {
                   width: 72,
                   height: 72,
                   bottom: 'calc(28px + env(safe-area-inset-bottom))',
-                  background: 'linear-gradient(135deg, #4F8CFF 0%, #1FD18B 100%)',
-                  boxShadow: '0 10px 30px rgba(79, 140, 255, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.22)',
+                  background: 'linear-gradient(135deg, #6C63FF 0%, #00D4FF 100%)',
+                  boxShadow: '0 10px 30px rgba(108, 99, 255, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.22)',
                   border: '1.5px solid rgba(255,255,255,0.12)',
                 }}
               >
@@ -379,6 +378,7 @@ export default function OwnerDashboard() {
         onOpenChange={(v) => { if (!v) setTxType(null); }}
         defaultType={(txType === 'Income' || txType === 'Expense') ? txType : undefined}
         initialStep="menu"
+        onSaved={loadFinanceWorkspace}
       />
     </>
   );
@@ -393,23 +393,23 @@ function OwnerNavItem({ active, icon: Icon, label, onClick }: { active: boolean;
       type="button"
       onClick={onClick}
       whileTap={{ scale: 0.92 }}
-      className="relative flex flex-col items-center justify-end gap-1.5 w-full h-full pb-[10px] outline-none"
+      className="relative flex flex-col items-center justify-end gap-1.5 w-full h-full pb-[10px] outline-none pointer-events-auto"
     >
       {active && (
         <motion.div
           layoutId="owner-nav-indicator"
           className="absolute top-0 inset-x-3 h-[2px] rounded-b-full"
-          style={{ background: '#10B981', boxShadow: '0 2px 8px #10B981' }}
+          style={{ background: '#6C63FF', boxShadow: '0 2px 8px rgba(108, 99, 255, 0.4)' }}
           transition={{ type: 'spring', stiffness: 450, damping: 32 }}
         />
       )}
       <motion.div
         animate={{ y: active ? -1 : 0 }}
-        style={{ color: active ? '#E1E2EC' : '#C2C6D6' }}
+        style={{ color: active ? '#6C63FF' : '#CBD5E1' }}
       >
-        <Icon size={22} strokeWidth={1.75} style={active ? { filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.5))' } : undefined} />
+        <Icon size={22} strokeWidth={1.75} style={active ? { filter: 'drop-shadow(0 0 6px rgba(108,99,255,0.5))' } : undefined} />
       </motion.div>
-      <span className="leading-none font-medium" style={{ fontSize: 11, color: active ? '#E1E2EC' : '#C2C6D6' }}>
+      <span className="leading-none font-medium" style={{ fontSize: 11, color: active ? '#6C63FF' : '#CBD5E1' }}>
         {label}
       </span>
     </motion.button>

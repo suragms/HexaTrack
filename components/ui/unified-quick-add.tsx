@@ -20,7 +20,7 @@ export function UnifiedQuickAdd() {
   // Hide on public pages or when auth is not loaded
   const isAuthenticated = !!user;
   const isPublicPage = (pathname === '/' && !isAuthenticated) || pathname === '/login' || pathname === '/register' || pathname.startsWith('/auth');
-  const isLocalManagedPage = pathname.startsWith('/dashboard') || pathname.startsWith('/owner') || pathname.startsWith('/staff');
+  const isLocalManagedPage = pathname.startsWith('/staff');
 
   // Keyboard shortcut: Pressing '+' opens the quick add menu
   useEffect(() => {

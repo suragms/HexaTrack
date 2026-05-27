@@ -29,5 +29,5 @@
 
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "backend"]
+  "exclude": ["node_modules", "backend", "antigravity-awesome-skills", "stitch_hexatrack_premium_fintech_ui", "stitch_hexatrack_obsidian_ui_redesign", "stitch_hexatrack_ai_finance_platform"]
 }

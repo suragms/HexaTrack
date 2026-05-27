@@ -962,7 +962,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function EmptyState({ title, action, onAction }: { title: string; action: string; onAction?: () => void }) {
   return <div className="rounded-3xl border border-dashed border-white/[0.1] bg-[#0E152B] px-6 py-16 text-center"><Building2 className="mx-auto mb-4 h-10 w-10 text-[#10B981]" /><h2 className="text-lg font-black">{title}</h2><p className="mt-2 text-sm text-[#C2C6D6]">{action}</p>{onAction ? <button onClick={onAction} className="mt-6 h-11 rounded-[18px] bg-[#10B981] px-5 text-sm font-bold text-white">Add First Transaction</button> : null}</div>;
 }
-
 function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
   return <div className="flex items-center justify-between rounded-2xl border border-[#FF5C75]/25 bg-[#FF5C75]/10 p-4 text-sm text-[#FF5C75]"><span>{message}</span><button onClick={onRetry} className="font-bold text-[#F5F7FA]"><RefreshCw className="mr-1 inline h-4 w-4" />Retry</button></div>;
 }
@@ -970,9 +969,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
 function FinanceSkeleton() {
   return <div className="space-y-4">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-3xl bg-white/[0.05]" />)}</div>;
 }
-
 type BottomTab = 'home' | 'history' | 'reports' | 'settings';
-
 function OwnerBottomNav({ activeTab, onAdd, disabled }: { activeTab: BottomTab; onAdd: () => void; disabled?: boolean }) {
   const router = useRouter();
   const tabs: Array<{ key: BottomTab; icon: React.ElementType; label: string; onClick: () => void }> = [
@@ -984,16 +981,16 @@ function OwnerBottomNav({ activeTab, onAdd, disabled }: { activeTab: BottomTab; 
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40"
+      className="fixed inset-x-0 bottom-0 z-[100] pointer-events-none"
       style={{
-        background: 'rgba(5,8,22,0.92)',
+        background: 'rgba(15, 23, 42, 0.85)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
       }}
     >
       <nav
-        className="mx-auto w-full max-w-md grid grid-cols-5 items-end select-none"
+        className="mx-auto w-full max-w-md grid grid-cols-5 items-end select-none pointer-events-auto"
         style={{ height: 82, paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* First 2 tabs */}
@@ -1001,18 +998,18 @@ function OwnerBottomNav({ activeTab, onAdd, disabled }: { activeTab: BottomTab; 
           <BottomNavItem key={tab.key} active={activeTab === tab.key} icon={tab.icon} label={tab.label} onClick={tab.onClick} />
         ))}
         {/* Center FAB */}
-        <div className="relative flex items-center justify-center" style={{ height: 82 }}>
-          <div className="absolute rounded-full pointer-events-none" style={{ width: 68, height: 68, background: 'rgba(16,185,129,0.25)', filter: 'blur(14px)', top: '50%', left: '50%', transform: 'translate(-50%, -54%)' }} />
+        <div className="relative flex items-center justify-center pointer-events-none" style={{ height: 82 }}>
+          <div className="absolute rounded-full pointer-events-none" style={{ width: 68, height: 68, background: 'rgba(108, 99, 255, 0.2)', filter: 'blur(14px)', top: '50%', left: '50%', transform: 'translate(-50%, -54%)' }} />
           <button
             onClick={onAdd}
             disabled={disabled}
-            className="relative z-10 flex items-center justify-center rounded-full overflow-hidden disabled:opacity-50 active:scale-90 transition-transform"
+            className="relative z-10 flex items-center justify-center rounded-full overflow-hidden disabled:opacity-50 active:scale-90 transition-transform pointer-events-auto"
             style={{
               width: 68,
               height: 68,
               marginBottom: 10,
-              background: 'linear-gradient(145deg, #34D399 0%, #10B981 50%, #059669 100%)',
-              boxShadow: '0 8px 24px rgba(16,185,129,0.45), 0 2px 8px rgba(0,0,0,0.4)',
+              background: 'linear-gradient(135deg, #6C63FF 0%, #00D4FF 100%)',
+              boxShadow: '0 8px 24px rgba(108, 99, 255, 0.45), 0 2px 8px rgba(0,0,0,0.4)',
               border: '1.5px solid rgba(255,255,255,0.12)',
             }}
           >
@@ -1033,18 +1030,18 @@ function BottomNavItem({ active, icon: Icon, label, onClick }: { active: boolean
     <button
       type="button"
       onClick={onClick}
-      className="relative flex flex-col items-center justify-end gap-1.5 w-full h-full pb-[10px] outline-none active:scale-95 transition-transform"
+      className="relative flex flex-col items-center justify-end gap-1.5 w-full h-full pb-[10px] outline-none active:scale-95 transition-transform pointer-events-auto"
     >
       {active && (
         <div
           className="absolute top-0 inset-x-3 h-[2px] rounded-b-full"
-          style={{ background: '#10B981', boxShadow: '0 2px 8px #10B981' }}
+          style={{ background: '#6C63FF', boxShadow: '0 2px 8px rgba(108, 99, 255, 0.4)' }}
         />
       )}
-      <div style={{ color: active ? '#E1E2EC' : '#C2C6D6' }}>
-        <Icon size={22} strokeWidth={1.75} style={active ? { filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.5))' } : undefined} />
+      <div style={{ color: active ? '#6C63FF' : '#CBD5E1' }}>
+        <Icon size={22} strokeWidth={1.75} style={active ? { filter: 'drop-shadow(0 0 6px rgba(108,99,255,0.5))' } : undefined} />
       </div>
-      <span className="leading-none font-medium" style={{ fontSize: 11, color: active ? '#E1E2EC' : '#C2C6D6' }}>
+      <span className="leading-none font-medium" style={{ fontSize: 11, color: active ? '#6C63FF' : '#CBD5E1' }}>
         {label}
       </span>
     </button>
