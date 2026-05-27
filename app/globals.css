@@ -129,32 +129,37 @@ video {
   }
 
   .input-finance {
-    @apply h-14 w-full rounded-xl border border-outline px-4 text-sm font-semibold text-on-surface outline-none transition focus:border-primary/50;
-    background: #F9FAFB;
+    @apply h-14 w-full rounded-xl border border-outline px-4 text-sm font-semibold text-on-surface outline-none transition;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .input-finance:focus {
+    border-color: rgba(108, 99, 255, 0.5);
+    box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.15);
   }
 
   .field {
     @apply w-full rounded-xl px-4 py-4 text-sm text-on-surface outline-none transition placeholder:text-on-surface-variant;
-    background: #F9FAFB;
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border);
   }
 
   .field:focus {
-    border-color: #10B981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    border-color: #6C63FF;
+    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.15);
   }
 
   .card {
     @apply rounded-2xl border border-outline bg-surface;
-    box-shadow: 0 10px 30px rgba(16, 42, 67, 0.04);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   }
 
   .glass-card {
     @apply border border-outline;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.04);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    box-shadow: 0 10px 30px rgba(16, 42, 67, 0.04);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   }
 
   .glass-panel {
@@ -163,8 +168,8 @@ video {
 
   .primary-button {
     @apply inline-flex min-h-[52px] items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
-    background: linear-gradient(135deg, #10B981, #059669);
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    background: linear-gradient(135deg, #6C63FF, #00D4FF);
+    box-shadow: 0 4px 14px rgba(108, 99, 255, 0.3);
   }
 
   .primary-button:hover {
@@ -173,13 +178,13 @@ video {
 
   .soft-button {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition active:scale-[0.98];
-    background: #F0FDF4;
-    color: #059669;
-    border: 1px solid #DCFCE7;
+    background: rgba(108, 99, 255, 0.1);
+    color: #6C63FF;
+    border: 1px solid rgba(108, 99, 255, 0.2);
   }
 
   .soft-button:hover {
-    background: #DCFCE7;
+    background: rgba(108, 99, 255, 0.18);
   }
 
   .eyebrow {
