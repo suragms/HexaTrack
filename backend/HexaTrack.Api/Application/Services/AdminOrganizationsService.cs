@@ -363,8 +363,62 @@ public sealed class AdminOrganizationsService(HexaTrackDbContext db, IUnitOfWork
             }
         }
 
+        Guid? oldBranchId = user.BranchId;
+
+        // Perform reassignment
         user.BranchId = request.BranchId;
+
+        // Update user Mode based on new BranchId
+        if (request.BranchId.HasValue)
+        {
+            user.Mode = UserMode.BranchManager;
+        }
+        else
+        {
+            user.Mode = UserMode.OrganizationStaff;
+        }
+
         user.UpdatedAt = DateTimeOffset.UtcNow;
+
+        // Clean up old branch workspace member relationship if it exists
+        if (oldBranchId.HasValue)
+        {
+            var oldBranch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == oldBranchId.Value, ct);
+            if (oldBranch?.WorkspaceId != null)
+            {
+                var memberToRemove = await db.WorkspaceMembers
+                    .FirstOrDefaultAsync(wm => wm.WorkspaceId == oldBranch.WorkspaceId.Value && wm.UserId == userId, ct);
+                if (memberToRemove != null)
+                {
+                    db.WorkspaceMembers.Remove(memberToRemove);
+                }
+            }
+        }
+
+        // Add to new branch workspace if it has a workspace
+        if (request.BranchId.HasValue)
+        {
+            var newBranch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(b => b.Id == request.BranchId.Value, ct);
+            if (newBranch?.WorkspaceId != null)
+            {
+                var existingMember = await db.WorkspaceMembers
+                    .FirstOrDefaultAsync(wm => wm.WorkspaceId == newBranch.WorkspaceId.Value && wm.UserId == userId, ct);
+                if (existingMember == null)
+                {
+                    db.WorkspaceMembers.Add(new WorkspaceMember
+                    {
+                        WorkspaceId = newBranch.WorkspaceId.Value,
+                        UserId = userId,
+                        Role = WorkspaceRole.Owner // Branch Manager gets Owner of their branch workspace
+                    });
+                }
+                else
+                {
+                    existingMember.Role = WorkspaceRole.Owner;
+                }
+            }
+        }
+
         await db.SaveChangesAsync(ct);
     }
 

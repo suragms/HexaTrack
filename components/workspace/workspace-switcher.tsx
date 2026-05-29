@@ -53,7 +53,7 @@ export function WorkspaceSwitcher() {
 
   async function handleCreated(created: Workspace) {
     setActiveWorkspaceId(created.id);
-    await refreshWorkspaces();
+    await refreshWorkspaces(created);
     await loadWorkspace();
   }
 

@@ -346,8 +346,7 @@ app.UseMiddleware<WorkspaceContextMiddleware>();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new {
-    status = "ok",
-    time = DateTimeOffset.UtcNow
+    status = "ok"
 }));
 app.MapGet("/api/health", async (HexaTrackDbContext db) =>
 {

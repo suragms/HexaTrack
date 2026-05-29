@@ -42,36 +42,6 @@ import { notificationScheduler } from '@/lib/notifications';
 import { CreateWorkspaceModal } from '@/components/workspace/create-workspace-modal';
 import type { Workspace } from '@/lib/types';
 
-/* ── Category Icon Map ── */
-const catIconMap: Record<string, React.ElementType> = {
-  food: Coffee,
-  grocery: ShoppingBag,
-  shopping: ShoppingBag,
-  travel: Car,
-  transport: Car,
-  bills: Zap,
-  utility: Zap,
-  rent: Home,
-  salary: Briefcase,
-  cloud: Cloud,
-  health: Heart,
-  healthcare: Stethoscope,
-  subscription: Smartphone,
-  fuel: Fuel,
-  office: Briefcase,
-  marketing: TrendingUp,
-  gift: Gift,
-  entertainment: Star,
-  invest: TrendingUp,
-  business: Briefcase,
-  client: Users,
-  refund: RefreshCw,
-  bonus: Gift,
-  rental: Home,
-  interest: DollarSign,
-  commission: DollarSign,
-  default: Tag,
-};
 
 const popularIcons = [
   { key: 'food', icon: Coffee, label: 'Food & Dining' },
@@ -141,8 +111,14 @@ export function AddTransactionSheet({
     return 'menu';
   })();
   const [step, setStep] = useState<QuickAddStep>(resolvedInitialStep);
-  const [type, setType] = useState<TransactionType>('Expense');
+  const [type, setType] = useState<TransactionType>(defaultType || 'Expense');
   const [createWsOpen, setCreateWsOpen] = useState(false);
+
+  // Reset selected category/subcategory when transaction type changes
+  useEffect(() => {
+    setSelectedCategoryId('');
+    setSelectedSubcategoryId('');
+  }, [type]);
 
   // Form Fields
   const [amount, setAmount] = useState<string>('');
@@ -339,12 +315,16 @@ export function AddTransactionSheet({
     }
 
     // Standard user path: workspace-ready guard
-    if (!activeWorkspaceId) {
-      try {
-        await useWorkspaceStore.getState().ensureActiveWorkspace();
-      } catch {
-        setLocalError('Workspace not ready. Please try again.');
-        return;
+    if (!isStaff) {
+      const currentActiveWsId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!currentActiveWsId) {
+        try {
+          await useWorkspaceStore.getState().ensureActiveWorkspace();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'No active workspace. Please create or select a workspace.';
+          setLocalError(msg);
+          return;
+        }
       }
     }
 
@@ -553,7 +533,7 @@ export function AddTransactionSheet({
                 onOpenChange={setCreateWsOpen}
                 onCreated={async (ws: Workspace) => {
                   useWorkspaceStore.getState().setActiveWorkspaceId(ws.id);
-                  await useWorkspaceStore.getState().refreshWorkspaces();
+                  await useWorkspaceStore.getState().refreshWorkspaces(ws);
                   await loadWorkspace();
                   setCreateWsOpen(false);
                   setStep('menu');

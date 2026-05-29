@@ -501,10 +501,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
  */
 function invalidateFinanceQueries() {
   try {
-    // Dynamic import to avoid circular deps at module init time.
-    // QueryClient is a singleton provided via QueryProvider.
-    // We access it through the global window to avoid coupling.
-    const { QueryClient } = require('@tanstack/react-query');
     // Try to find the QueryClient from the React tree
     // Since we can't access context from outside React, we use a workaround:
     // Dispatch a custom event that the QueryProvider can listen for.

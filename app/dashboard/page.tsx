@@ -11,7 +11,7 @@ import { BrandMark } from '@/components/ui/brand';
 import { useAuthStore } from '@/store/auth-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import type { Workspace } from '@/lib/types';
+import type { Workspace, TransactionType } from '@/lib/types';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -27,8 +27,10 @@ export default function DashboardPage() {
   const loading = useFinanceStore((s) => s.loading);
 
   const [activeTxSheet, setActiveTxSheet] = useState(false);
+  const [txType, setTxType] = useState<TransactionType | undefined>(undefined);
   const [activeScreen, setActiveScreen] = useState<ScreenKey>('dashboard');
   const [createOpen, setCreateOpen] = useState(false);
+  const [createType, setCreateType] = useState<'Personal' | 'Business' | 'Family'>('Personal');
 
   useEffect(() => {
     if (hydrated && user && !wsHydrated) hydrateWorkspace();
@@ -66,7 +68,7 @@ export default function DashboardPage() {
 
   const handleCreated = async (created: Workspace) => {
     setActiveWorkspaceId(created.id);
-    await refreshWorkspaces();
+    await refreshWorkspaces(created);
     await loadWorkspace();
   };
 
@@ -106,7 +108,10 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl mb-12 animate-rise-in" style={{ animationDelay: '100ms' }}>
               {/* Personal Card */}
               <button
-                onClick={() => setCreateOpen(true)}
+                onClick={() => {
+                  setCreateType('Personal');
+                  setCreateOpen(true);
+                }}
                 className="group relative flex flex-col text-left justify-between rounded-3xl border border-white/[0.06] bg-[#0E152B]/60 p-6 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-emerald/30 hover:bg-[#0E152B]/85 hover:shadow-[0_12px_24px_rgba(16,185,129,0.05)]"
               >
                 <div className="space-y-4">
@@ -128,7 +133,10 @@ export default function DashboardPage() {
 
               {/* Business Card */}
               <button
-                onClick={() => setCreateOpen(true)}
+                onClick={() => {
+                  setCreateType('Business');
+                  setCreateOpen(true);
+                }}
                 className="group relative flex flex-col text-left justify-between rounded-3xl border border-white/[0.06] bg-[#0E152B]/60 p-6 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-cyan/30 hover:bg-[#0E152B]/85 hover:shadow-[0_12px_24px_rgba(6,182,212,0.05)]"
               >
                 <div className="space-y-4">
@@ -150,7 +158,10 @@ export default function DashboardPage() {
 
               {/* Family Card */}
               <button
-                onClick={() => setCreateOpen(true)}
+                onClick={() => {
+                  setCreateType('Family');
+                  setCreateOpen(true);
+                }}
                 className="group relative flex flex-col text-left justify-between rounded-3xl border border-white/[0.06] bg-[#0E152B]/60 p-6 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-amber-500/30 hover:bg-[#0E152B]/85 hover:shadow-[0_12px_24px_rgba(245,158,11,0.05)]"
               >
                 <div className="space-y-4">
@@ -174,7 +185,10 @@ export default function DashboardPage() {
             {/* CTA Button */}
             <div className="animate-rise-in" style={{ animationDelay: '200ms' }}>
               <button
-                onClick={() => setCreateOpen(true)}
+                onClick={() => {
+                  setCreateType('Personal');
+                  setCreateOpen(true);
+                }}
                 className="primary-button flex items-center gap-2 px-8 py-4 text-base tracking-wide rounded-2xl animate-none"
               >
                 <Plus size={20} />
@@ -193,6 +207,7 @@ export default function DashboardPage() {
           open={createOpen}
           onOpenChange={setCreateOpen}
           onCreated={handleCreated}
+          defaultType={createType}
         />
       </>
     );
@@ -204,19 +219,33 @@ export default function DashboardPage() {
         open={activeTxSheet} 
         onOpenChange={(open) => {
           setActiveTxSheet(open);
-          if (!open && activeScreen === 'transaction') {
-            setActiveScreen('dashboard');
+          if (!open) {
+            setTxType(undefined);
+            if (activeScreen === 'transaction') {
+              setActiveScreen('dashboard');
+            }
           }
         }} 
+        defaultType={txType}
       />
       <AppShell
         activeScreen={activeScreen}
         isTxSheetOpen={activeTxSheet}
         transactionCount={transactions.length}
         onNavigate={handleNavigate}
-        onAddTransaction={() => setActiveTxSheet(true)}
+        onAddTransaction={() => {
+          setTxType(undefined);
+          setActiveTxSheet(true);
+        }}
       >
-        <PremiumFintechDashboard roleLabel="Individual User" onAddTransaction={() => setActiveTxSheet(true)} onNavigate={(screen) => handleNavigate(screen as ScreenKey)} />
+        <PremiumFintechDashboard 
+          roleLabel="Individual User" 
+          onAddTransaction={(type) => {
+            setTxType(type);
+            setActiveTxSheet(true);
+          }} 
+          onNavigate={(screen) => handleNavigate(screen as ScreenKey)} 
+        />
       </AppShell>
     </>
   );

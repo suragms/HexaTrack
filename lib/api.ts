@@ -411,6 +411,11 @@ export const hexaTrackApi = {
         method: 'POST',
         body: payload,
       }),
+    updateUser: (userId: string, payload: { email: string; fullName: string; department?: string | null; organizationRole?: string | null }) =>
+      apiRequest<void>(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        body: payload,
+      }),
     deleteUser: (userId: string) =>
       apiRequest<void>(`/api/admin/users/${userId}`, { method: 'DELETE' }),
     setLocked: (userId: string, locked: boolean) =>

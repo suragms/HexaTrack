@@ -33,11 +33,16 @@ public sealed record AdminCreateUserRequest(
     WorkspaceType WorkspaceType,
     string Currency,
     bool IsSuperAdmin,
-    WorkspaceRole? InitialWorkspaceRole,
+    WorkspaceRole? InitialWorkspaceRole = null,
     Guid? OrganizationId = null,
     Guid? BranchId = null,
     string? OrganizationRole = null,
     string? Department = null);
+public sealed record AdminUpdateUserRequest(
+    string Email,
+    string FullName,
+    string? Department = null,
+    string? OrganizationRole = null);
 public sealed record AdminCreateUserResponse(
     bool Success,
     Guid Id,

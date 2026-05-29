@@ -20,6 +20,7 @@ public interface IAdminUsersService
     Task SetLockedAsync(Guid targetUserId, bool locked, Guid actorUserId, CancellationToken cancellationToken);
     Task SetSubscriptionPlanAsync(Guid targetUserId, SubscriptionPlan plan, Guid actorUserId, CancellationToken cancellationToken);
     Task ResetPasswordAsync(Guid targetUserId, string newPassword, Guid actorUserId, CancellationToken cancellationToken);
+    Task UpdateAsync(Guid targetUserId, AdminUpdateUserRequest request, Guid actorUserId, CancellationToken cancellationToken);
 }
 
 public sealed class AdminUsersService(
@@ -126,9 +127,13 @@ public sealed class AdminUsersService(
             string workspaceName = request.WorkspaceName?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(workspaceName))
             {
-                workspaceName = mode == HexaTrack.Api.Domain.UserMode.Individual
-                    ? $"{fullName} Personal Workspace"
-                    : $"{fullName}'s Ledger";
+                workspaceName = mode switch
+                {
+                    HexaTrack.Api.Domain.UserMode.Individual => "Personal Workspace",
+                    HexaTrack.Api.Domain.UserMode.OrganizationOwner => "HQ Workspace",
+                    HexaTrack.Api.Domain.UserMode.BranchManager => "Branch Workspace",
+                    _ => $"{fullName}'s Ledger"
+                };
             }
 
             var validatedRequest = request with { WorkspaceName = workspaceName, FullName = fullName };
@@ -169,45 +174,107 @@ public sealed class AdminUsersService(
 
             db.Users.Add(user);
             WorkspaceRole membershipRole = mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceRole.Owner : (validatedRequest.InitialWorkspaceRole ?? WorkspaceRole.Owner);
-            WorkspaceSeedResult seed = AddStarterWorkspaceWithSeed(
-                db,
-                user.Id,
-                workspaceName,
-                mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceType.Personal : validatedRequest.WorkspaceType,
-                mode == HexaTrack.Api.Domain.UserMode.Individual ? WorkspaceMode.Individual : WorkspaceMode.Organization,
-                currency,
-                membershipRole);
+            
+            Guid workspaceId;
+            int featureFlagCount = 0;
+            int accountCount = 0;
+            int categoryCount = 0;
+            Guid? membershipId = null;
+
+            Workspace? existingWorkspace = null;
+            if (mode == HexaTrack.Api.Domain.UserMode.BranchManager && validatedRequest.BranchId.HasValue)
+            {
+                var branch = await db.Branches.FindAsync([validatedRequest.BranchId.Value], ct);
+                if (branch?.WorkspaceId != null)
+                {
+                    existingWorkspace = await db.Workspaces.FindAsync([branch.WorkspaceId.Value], ct);
+                }
+            }
+            else if ((mode == HexaTrack.Api.Domain.UserMode.OrganizationOwner || mode == HexaTrack.Api.Domain.UserMode.OrganizationStaff) && validatedRequest.OrganizationId.HasValue)
+            {
+                existingWorkspace = await db.Workspaces
+                    .FirstOrDefaultAsync(w => w.OrganizationId == validatedRequest.OrganizationId.Value && w.Mode == WorkspaceMode.Organization, ct);
+            }
+
+            if (existingWorkspace != null)
+            {
+                var member = new WorkspaceMember
+                {
+                    WorkspaceId = existingWorkspace.Id,
+                    UserId = user.Id,
+                    Role = membershipRole,
+                };
+                db.WorkspaceMembers.Add(member);
+                workspaceId = existingWorkspace.Id;
+                membershipId = member.Id;
+            }
+            else
+            {
+                WorkspaceType wsType = (mode == HexaTrack.Api.Domain.UserMode.Individual || mode == HexaTrack.Api.Domain.UserMode.SuperAdmin)
+                    ? WorkspaceType.Personal
+                    : validatedRequest.WorkspaceType;
+
+                WorkspaceMode wsMode = (mode == HexaTrack.Api.Domain.UserMode.Individual || mode == HexaTrack.Api.Domain.UserMode.SuperAdmin)
+                    ? WorkspaceMode.Individual
+                    : (mode == HexaTrack.Api.Domain.UserMode.BranchManager ? WorkspaceMode.Branch : WorkspaceMode.Organization);
+
+                WorkspaceSeedResult seed = AddStarterWorkspaceWithSeed(
+                    db,
+                    user.Id,
+                    workspaceName,
+                    wsType,
+                    wsMode,
+                    currency,
+                    membershipRole,
+                    user.OrganizationId,
+                    user.BranchId);
+
+                workspaceId = seed.WorkspaceId;
+                featureFlagCount = seed.FeatureFlagCount;
+                accountCount = seed.AccountCount;
+                categoryCount = seed.CategoryCount;
+                membershipId = seed.MembershipId;
+
+                if (mode == HexaTrack.Api.Domain.UserMode.BranchManager && user.BranchId.HasValue)
+                {
+                    var branch = await db.Branches.FindAsync([user.BranchId.Value], ct);
+                    if (branch != null && branch.WorkspaceId == null)
+                    {
+                        branch.WorkspaceId = workspaceId;
+                    }
+                }
+            }
 
             logger.LogInformation(
                 "Admin user create provisioning prepared userId={UserId} workspaceId={WorkspaceId} workspaceRole={WorkspaceRole} featureFlags={FeatureFlagCount} accounts={AccountCount} categories={CategoryCount}",
                 user.Id,
-                seed.WorkspaceId,
+                workspaceId,
                 membershipRole,
-                seed.FeatureFlagCount,
-                seed.AccountCount,
-                seed.CategoryCount);
+                featureFlagCount,
+                accountCount,
+                categoryCount);
 
             await db.SaveChangesAsync(ct);
             logger.LogInformation(
                 "Admin user create database save completed userId={UserId} workspaceId={WorkspaceId} membershipId={MembershipId}",
                 user.Id,
-                seed.WorkspaceId,
-                seed.MembershipId);
+                workspaceId,
+                membershipId);
 
             string meta = JsonSerializer.Serialize(new
             {
                 email = user.Email,
                 workspace = workspaceName,
-                workspaceId = seed.WorkspaceId,
+                workspaceId,
                 isSuperAdmin = user.IsSuperAdmin,
                 userMode = mode.ToString(),
                 currency,
                 workspaceRole = membershipRole.ToString(),
             });
             await audit.LogAsync(actorUserId, "user.create", "User", user.Id, meta, ct);
-            logger.LogInformation("Admin user create transaction ready to commit userId={UserId} workspaceId={WorkspaceId}", user.Id, seed.WorkspaceId);
+            logger.LogInformation("Admin user create transaction ready to commit userId={UserId} workspaceId={WorkspaceId}", user.Id, workspaceId);
 
-            return new AdminCreateUserResponse(true, user.Id, user.Id, seed.WorkspaceId, user.Email, user.DisplayName, user.IsSuperAdmin, validatedRequest.Password, validatedRequest.Password);
+            return new AdminCreateUserResponse(true, user.Id, user.Id, workspaceId, user.Email, user.DisplayName, user.IsSuperAdmin, validatedRequest.Password, validatedRequest.Password);
             }, cancellationToken);
             logger.LogInformation(
                 "Admin user create transaction committed userId={UserId} workspaceId={WorkspaceId} email={Email}",
@@ -360,6 +427,49 @@ public sealed class AdminUsersService(
         await audit.LogAsync(actorUserId, "user.password_reset", "User", targetUserId, meta, cancellationToken);
     }
 
+    public async Task UpdateAsync(Guid targetUserId, AdminUpdateUserRequest request, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            throw new InvalidOperationException("Email is required.");
+        }
+
+        string email = request.Email.Trim().ToLowerInvariant();
+        string fullName = request.FullName.Trim();
+
+        User? user = await db.Users.SingleOrDefaultAsync(x => x.Id == targetUserId, cancellationToken)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        if (await db.Users.AnyAsync(x => x.Email == email && x.Id != targetUserId, cancellationToken))
+        {
+            throw new InvalidOperationException("Email is already in use by another user.");
+        }
+
+        string oldEmail = user.Email;
+        string oldName = user.DisplayName;
+
+        user.Email = email;
+        user.DisplayName = fullName;
+        user.Department = request.Department?.Trim();
+        user.OrganizationRole = request.OrganizationRole?.Trim();
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        string meta = JsonSerializer.Serialize(new
+        {
+            oldEmail,
+            newEmail = email,
+            oldName,
+            newName = fullName,
+            department = user.Department,
+            role = user.OrganizationRole
+        });
+        await audit.LogAsync(actorUserId, "user.update", "User", targetUserId, meta, cancellationToken);
+    }
+
     public async Task SetSubscriptionPlanAsync(Guid targetUserId, SubscriptionPlan plan, Guid actorUserId, CancellationToken cancellationToken)
     {
         User? user = await db.Users.SingleOrDefaultAsync(x => x.Id == targetUserId, cancellationToken)
@@ -445,7 +555,9 @@ public sealed class AdminUsersService(
         WorkspaceType workspaceType,
         WorkspaceMode workspaceMode,
         string currency,
-        WorkspaceRole membershipRole)
+        WorkspaceRole membershipRole,
+        Guid? organizationId = null,
+        Guid? branchId = null)
     {
         var workspace = new Workspace
         {
@@ -453,6 +565,7 @@ public sealed class AdminUsersService(
             Name = workspaceName,
             Type = workspaceType,
             Mode = workspaceMode,
+            OrganizationId = organizationId,
             Currency = currency,
             IsDefault = true,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -486,36 +599,36 @@ public sealed class AdminUsersService(
 
         Account[] starterAccounts =
         [
-            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Primary Bank", Type = AccountType.Bank, Currency = currency, Balance = 0 },
-            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Everyday Wallet", Type = AccountType.Wallet, Currency = currency, Balance = 0 },
-            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Cash", Type = AccountType.Cash, Currency = currency, Balance = 0 },
-            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Credit Card", Type = AccountType.Credit, Currency = currency, Balance = 0 }
+            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Primary Bank", Type = AccountType.Bank, Currency = currency, Balance = 0, OrganizationId = organizationId, BranchId = branchId },
+            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Everyday Wallet", Type = AccountType.Wallet, Currency = currency, Balance = 0, OrganizationId = organizationId, BranchId = branchId },
+            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Cash", Type = AccountType.Cash, Currency = currency, Balance = 0, OrganizationId = organizationId, BranchId = branchId },
+            new() { WorkspaceId = workspaceId, UserId = userId, Name = "Credit Card", Type = AccountType.Credit, Currency = currency, Balance = 0, OrganizationId = organizationId, BranchId = branchId }
         ];
 
-        var salary = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Salary", Type = TransactionType.Income, Color = "#10b981", Icon = "Briefcase" };
-        var freelance = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Freelance", Type = TransactionType.Income, Color = "#06b6d4", Icon = "Laptop" };
-        var business = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Business", Type = TransactionType.Income, Color = "#3b82f6", Icon = "Store" };
-        var investments = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Investments", Type = TransactionType.Income, Color = "#f59e0b", Icon = "TrendingUp" };
-        var bonus = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Bonus", Type = TransactionType.Income, Color = "#a855f7", Icon = "Gift" };
+        var salary = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Salary", Type = TransactionType.Income, Color = "#10b981", Icon = "Briefcase", OrganizationId = organizationId, BranchId = branchId };
+        var freelance = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Freelance", Type = TransactionType.Income, Color = "#06b6d4", Icon = "Laptop", OrganizationId = organizationId, BranchId = branchId };
+        var business = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Business", Type = TransactionType.Income, Color = "#3b82f6", Icon = "Store", OrganizationId = organizationId, BranchId = branchId };
+        var investments = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Investments", Type = TransactionType.Income, Color = "#f59e0b", Icon = "TrendingUp", OrganizationId = organizationId, BranchId = branchId };
+        var bonus = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Bonus", Type = TransactionType.Income, Color = "#a855f7", Icon = "Gift", OrganizationId = organizationId, BranchId = branchId };
 
-        var food = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Food", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils" };
-        var transport = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Transport", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus" };
-        var bills = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Bills", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap" };
-        var shopping = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Shopping", Type = TransactionType.Expense, Color = "#ec4899", Icon = "ShoppingBag" };
-        var entertainment = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Entertainment", Type = TransactionType.Expense, Color = "#8b5cf6", Icon = "Film" };
+        var food = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Food", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils", OrganizationId = organizationId, BranchId = branchId };
+        var transport = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Transport", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus", OrganizationId = organizationId, BranchId = branchId };
+        var bills = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Bills", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap", OrganizationId = organizationId, BranchId = branchId };
+        var shopping = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Shopping", Type = TransactionType.Expense, Color = "#ec4899", Icon = "ShoppingBag", OrganizationId = organizationId, BranchId = branchId };
+        var entertainment = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, Name = "Entertainment", Type = TransactionType.Expense, Color = "#8b5cf6", Icon = "Film", OrganizationId = organizationId, BranchId = branchId };
 
         dbContext.Categories.AddRange([salary, freelance, business, investments, bonus, food, transport, bills, shopping, entertainment]);
 
-        var restaurant = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Restaurant", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils" };
-        var cafe = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Cafe", Type = TransactionType.Expense, Color = "#f97316", Icon = "Coffee" };
-        var groceries = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Groceries", Type = TransactionType.Expense, Color = "#f97316", Icon = "ShoppingCart" };
+        var restaurant = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Restaurant", Type = TransactionType.Expense, Color = "#f97316", Icon = "Utensils", OrganizationId = organizationId, BranchId = branchId };
+        var cafe = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Cafe", Type = TransactionType.Expense, Color = "#f97316", Icon = "Coffee", OrganizationId = organizationId, BranchId = branchId };
+        var groceries = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = food.Id, Name = "Groceries", Type = TransactionType.Expense, Color = "#f97316", Icon = "ShoppingCart", OrganizationId = organizationId, BranchId = branchId };
 
-        var fuel = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Fuel", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Fuel" };
-        var taxi = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Taxi", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Car" };
-        var bus = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Bus", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus" };
+        var fuel = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Fuel", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Fuel", OrganizationId = organizationId, BranchId = branchId };
+        var taxi = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Taxi", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Car", OrganizationId = organizationId, BranchId = branchId };
+        var bus = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = transport.Id, Name = "Bus", Type = TransactionType.Expense, Color = "#2563eb", Icon = "Bus", OrganizationId = organizationId, BranchId = branchId };
 
-        var electricity = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = bills.Id, Name = "Electricity", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap" };
-        var internet = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = bills.Id, Name = "Internet", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Wifi" };
+        var electricity = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = bills.Id, Name = "Electricity", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Zap", OrganizationId = organizationId, BranchId = branchId };
+        var internet = new Category { Id = Guid.NewGuid(), WorkspaceId = workspaceId, UserId = userId, ParentCategoryId = bills.Id, Name = "Internet", Type = TransactionType.Expense, Color = "#ef4444", Icon = "Wifi", OrganizationId = organizationId, BranchId = branchId };
 
         dbContext.Categories.AddRange([restaurant, cafe, groceries, fuel, taxi, bus, electricity, internet]);
 

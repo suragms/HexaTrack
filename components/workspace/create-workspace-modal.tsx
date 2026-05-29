@@ -7,6 +7,8 @@ import { BottomSheet } from '@/components/ui/mobile-layout';
 import { hexaTrackApi } from '@/lib/api';
 import type { Workspace } from '@/lib/types';
 
+import { useAuthStore } from '@/store/auth-store';
+
 const createWorkspaceSchema = z.object({
   name: z.string().trim().min(1, 'Enter a name').max(120),
   type: z.enum(['Personal', 'Business', 'Family']),
@@ -19,11 +21,19 @@ type CreateWorkspaceModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (workspace: Workspace) => void | Promise<void>;
+  defaultType?: 'Personal' | 'Business' | 'Family';
 };
 
-export function CreateWorkspaceModal({ open, onOpenChange, onCreated }: CreateWorkspaceModalProps) {
+export function CreateWorkspaceModal({ open, onOpenChange, onCreated, defaultType }: CreateWorkspaceModalProps) {
+  const user = useAuthStore((s) => s.user);
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const derivedDefaultType = defaultType || (
+    user?.userMode === 'Individual' ? 'Personal' :
+    user?.userMode === 'OrganizationOwner' || user?.userMode === 'OrganizationStaff' || user?.userMode === 'BranchManager' ? 'Business' :
+    'Personal'
+  );
 
   if (!open) return null;
 
@@ -91,7 +101,8 @@ export function CreateWorkspaceModal({ open, onOpenChange, onCreated }: CreateWo
             Type
             <select
               className="field mt-2 text-base animate-none"
-              defaultValue="Personal"
+              defaultValue={derivedDefaultType}
+              key={derivedDefaultType}
               name="type"
             >
               <option value="Personal">Personal</option>

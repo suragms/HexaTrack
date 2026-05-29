@@ -120,9 +120,9 @@ export default function Home() {
   const content = useMemo(() => {
     switch (screen) {
       case 'dashboard':
-        return <DashboardScreen onAddTransaction={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }))} onNavigate={setScreen} />;
+        return <DashboardScreen onAddTransaction={(type) => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: type || 'Expense' } }))} onNavigate={setScreen} />;
       case 'transaction':
-        return <DashboardScreen onAddTransaction={() => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: 'Expense' } }))} onNavigate={setScreen} compact />;
+        return <DashboardScreen onAddTransaction={(type) => window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { type: type || 'Expense' } }))} onNavigate={setScreen} compact />;
       case 'history':
         return <HistoryScreen />;
       case 'reports':

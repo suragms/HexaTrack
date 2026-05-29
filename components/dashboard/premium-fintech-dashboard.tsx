@@ -5,28 +5,23 @@ import { motion, type Variants } from 'framer-motion';
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  Bell,
   ChevronRight,
   PieChart,
-  Plus,
-  Search,
   Sparkles,
   Wallet,
 } from 'lucide-react';
-import { BrandMark } from '@/components/ui/brand';
 import { money, shortDate } from '@/lib/format';
-import { useAuthStore } from '@/store/auth-store';
 import { useFinanceStore } from '@/store/finance-store';
-import { useWorkspaceStore } from '@/store/workspace-store';
-import { WorkspaceSwitcher } from '@/components/workspace/workspace-switcher';
-import { BranchSwitcher } from '@/components/branches/branch-switcher';
 
 type FilterTab = 'Today' | 'Week' | 'Month' | 'Year';
 
+import type { TransactionType } from '@/lib/types';
+import type { ScreenKey } from '@/components/layout/app-shell';
+
 type PremiumFintechDashboardProps = {
   roleLabel?: string;
-  onAddTransaction: () => void;
-  onNavigate?: (screen: string) => void;
+  onAddTransaction: (type?: TransactionType) => void;
+  onNavigate?: (screen: ScreenKey) => void;
 };
 
 // Vibrant theme-compliant colors for categories
@@ -56,25 +51,16 @@ const itemVariants: Variants = {
   },
 };
 
-export function PremiumFintechDashboard({ roleLabel = 'Individual', onAddTransaction, onNavigate }: PremiumFintechDashboardProps) {
+export function PremiumFintechDashboard({ onAddTransaction, onNavigate }: PremiumFintechDashboardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('Month');
-  const user = useAuthStore((s) => s.user);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const accounts = useFinanceStore((s) => s.accounts);
   const categories = useFinanceStore((s) => s.categories);
   const report = useFinanceStore((s) => s.report);
   const transactions = useFinanceStore((s) => s.transactions);
 
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0);
   const totalFlow = Math.max(report.income + report.expense, 1);
   const profitPercent = Math.max(0, Math.min(100, Math.round((Math.max(report.net, 0) / totalFlow) * 100)));
-
-  const isOrgUser = useMemo(() => {
-    const role = user?.organizationRole?.toLowerCase();
-    return role === 'owner' || role === 'branchmanager' || role === 'staff' || role === 'superadmin';
-  }, [user]);
 
   const categoryBreakdown = useMemo(() => {
     const expenses = transactions.filter((tx) => tx.type === 'Expense');
@@ -125,14 +111,26 @@ export function PremiumFintechDashboard({ roleLabel = 'Individual', onAddTransac
                 <span>{profitPercent}% profit efficiency this {activeFilter.toLowerCase()}</span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onAddTransaction}
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4F8CFF] to-[#1FD18B] text-white shadow-[0_8px_20px_rgba(79,140,255,0.3)] transition hover:scale-105 active:scale-95 border border-white/10"
-              aria-label="Add transaction"
-            >
-              <Plus size={24} />
-            </button>
+            <div className="flex gap-2.5 shrink-0 self-center">
+              <button
+                type="button"
+                onClick={() => onAddTransaction('Income')}
+                className="flex items-center gap-2 rounded-2xl bg-[#1FD18B]/10 hover:bg-[#1FD18B]/20 text-[#1FD18B] border border-[#1FD18B]/20 px-4 py-2.5 text-xs font-black uppercase tracking-wider transition hover:scale-105 active:scale-95 shadow-sm"
+                aria-label="Add Income"
+              >
+                <ArrowDownLeft size={16} strokeWidth={2.5} />
+                <span>Income</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddTransaction('Expense')}
+                className="flex items-center gap-2 rounded-2xl bg-[#FF5C75]/10 hover:bg-[#FF5C75]/20 text-[#FF5C75] border border-[#FF5C75]/20 px-4 py-2.5 text-xs font-black uppercase tracking-wider transition hover:scale-105 active:scale-95 shadow-sm"
+                aria-label="Add Expense"
+              >
+                <ArrowUpRight size={16} strokeWidth={2.5} />
+                <span>Expense</span>
+              </button>
+            </div>
           </div>
         </motion.section>
 
@@ -260,14 +258,7 @@ export function PremiumFintechDashboard({ roleLabel = 'Individual', onAddTransac
   );
 }
 
-function IconButton({ label, icon: Icon, hasBadge = false }: { label: string; icon: React.ElementType; hasBadge?: boolean }) {
-  return (
-    <button type="button" aria-label={label} className="relative grid h-10 w-10 place-items-center rounded-full bg-[#121A22] text-[#8B9BB4] shadow-sm border border-white/[0.06] transition hover:text-[#4F8CFF] hover:border-[#4F8CFF]/30">
-      <Icon size={18} />
-      {hasBadge && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#1FD18B] ring-2 ring-[#121A22]" />}
-    </button>
-  );
-}
+
 
 function PremiumCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (

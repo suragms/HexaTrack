@@ -58,6 +58,7 @@ export function BottomNav({ activeScreen, isTxSheetOpen = false, onAddTransactio
               background: 'linear-gradient(135deg, #6C63FF 0%, #00D4FF 100%)',
               boxShadow: '0 10px 30px rgba(108, 99, 255, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.2)',
               border: '1.5px solid rgba(255, 255, 255, 0.2)',
+              touchAction: 'manipulation',
             }}
           >
             <motion.div

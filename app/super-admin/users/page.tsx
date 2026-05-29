@@ -3,9 +3,54 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { hexaTrackApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
-import type { AdminUserListItem, AdminCreateUserRequest, WorkspaceType, LightOrganization, LightBranch, SubscriptionPlan, UserFeatureToggleDto, OrganizationFeatureToggleDto, BranchFeatureToggleDto } from '@/lib/types';
+import type { AdminUserListItem, AdminCreateUserRequest, WorkspaceType, LightOrganization, LightBranch, SubscriptionPlan, UserFeatureToggleDto, OrganizationFeatureToggleDto, BranchFeatureToggleDto, FeatureFlagDto } from '@/lib/types';
 import { Users, Plus, Search, Shield, Lock, Unlock, Trash2, X, ChevronLeft, ChevronRight, MoreVertical, Crown, Copy, Check, Sparkles, Building, Landmark, UserCheck, RefreshCw, Key, CreditCard, Flag, GitMerge, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const generateRandomPassword = () => {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+  let generated = '';
+  for (let i = 0; i < 12; i++) {
+    generated += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return generated;
+};
+
+const copyToClipboard = (text: string): boolean => {
+  if (typeof window === 'undefined') return false;
+
+  // Try the synchronous fallback textarea approach first because it is 100% reliable inside iframes/non-secure contexts and retains click user activation
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '-9999px';
+    textArea.style.left = '-9999px';
+    textArea.setAttribute('readonly', '');
+    
+    document.body.appendChild(textArea);
+    textArea.select();
+    textArea.setSelectionRange(0, 99999);
+    
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    if (successful) {
+      return true;
+    }
+  } catch (err) {
+    console.warn('Synchronous textarea copy failed, trying navigator:', err);
+  }
+
+  // Fallback to modern clipboard API if synchronous execCommand fails
+  if (navigator.clipboard && window.isSecureContext) {
+    void navigator.clipboard.writeText(text).catch((err) => {
+      console.error('Navigator clipboard write failed:', err);
+    });
+    return true;
+  }
+
+  return false;
+};
 
 export default function UsersPage() {
   const { accessToken } = useAuthStore();
@@ -24,6 +69,8 @@ export default function UsersPage() {
   const [orgFlagsUser, setOrgFlagsUser] = useState<AdminUserListItem | null>(null);
   const [branchFlagsUser, setBranchFlagsUser] = useState<AdminUserListItem | null>(null);
   const [reassignBranchUser, setReassignBranchUser] = useState<AdminUserListItem | null>(null);
+  const [editUserUser, setEditUserUser] = useState<AdminUserListItem | null>(null);
+  const [featureFlagsUser, setFeatureFlagsUser] = useState<AdminUserListItem | null>(null);
 
   const pageSize = 20;
 
@@ -246,16 +293,13 @@ export default function UsersPage() {
                           <div className="fixed inset-0 z-10" onClick={() => setActionUser(null)} />
                             <div className="absolute right-0 top-8 w-48 rounded-xl border border-white/[0.08] bg-[#141828] shadow-2xl z-20 py-1.5 max-h-[320px] overflow-y-auto">
                               <button
-                                onClick={() => handleToggleLock(u)}
+                                onClick={() => {
+                                  setEditUserUser(u);
+                                  setActionUser(null);
+                                }}
                                 className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
                               >
-                                {u.isLocked ? <><Unlock size={12} /> Unlock Account</> : <><Lock size={12} /> Lock Account</>}
-                              </button>
-                              <button
-                                onClick={() => handleToggleSuperAdmin(u)}
-                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-amber-400 hover:bg-white/[0.04]"
-                              >
-                                <Shield size={12} /> {u.isSuperAdmin ? 'Demote Super' : 'Promote Super'}
+                                <RefreshCw size={12} className="text-violet-400" /> Edit User
                               </button>
                               <button
                                 onClick={() => {
@@ -268,45 +312,14 @@ export default function UsersPage() {
                               </button>
                               <button
                                 onClick={() => {
-                                  setEditSubscriptionUser(u);
+                                  setFeatureFlagsUser(u);
                                   setActionUser(null);
                                 }}
                                 className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
                               >
-                                <CreditCard size={12} className="text-violet-400" /> Edit Subscription
+                                <Flag size={12} className="text-violet-400" /> Feature Flags
                               </button>
-                              <button
-                                onClick={() => {
-                                  setUserFlagsUser(u);
-                                  setActionUser(null);
-                                }}
-                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
-                              >
-                                <Flag size={12} className="text-violet-400" /> User Flags
-                              </button>
-                              {u.organizationId && (
-                                <button
-                                  onClick={() => {
-                                    setOrgFlagsUser(u);
-                                    setActionUser(null);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
-                                >
-                                  <Building size={12} className="text-violet-400" /> Org Flags
-                                </button>
-                              )}
-                              {u.branchId && (
-                                <button
-                                  onClick={() => {
-                                    setBranchFlagsUser(u);
-                                    setActionUser(null);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
-                                >
-                                  <Landmark size={12} className="text-violet-400" /> Branch Flags
-                                </button>
-                              )}
-                              {u.organizationId && u.organizationRole?.toLowerCase() === 'staff' && (
+                              {u.organizationId && u.organizationRole === 'Staff' && (
                                 <button
                                   onClick={() => {
                                     setReassignBranchUser(u);
@@ -317,6 +330,12 @@ export default function UsersPage() {
                                   <GitMerge size={12} className="text-violet-400" /> Reassign Branch
                                 </button>
                               )}
+                              <button
+                                onClick={() => handleToggleLock(u)}
+                                className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                              >
+                                {u.isLocked ? <><Unlock size={12} className="text-emerald-400" /> Unsuspend</> : <><Lock size={12} className="text-red-400" /> Suspend</>}
+                              </button>
                               <div className="border-t border-white/[0.04] my-1" />
                               <button
                                 onClick={() => handleDelete(u.id)}
@@ -434,6 +453,26 @@ export default function UsersPage() {
             }}
           />
         )}
+        {editUserUser && (
+          <EditUserModal
+            user={editUserUser}
+            onClose={() => setEditUserUser(null)}
+            onSuccess={() => {
+              setEditUserUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {featureFlagsUser && (
+          <UnifiedFeatureFlagsModal
+            user={featureFlagsUser}
+            onClose={() => setFeatureFlagsUser(null)}
+            onSuccess={() => {
+              setFeatureFlagsUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -445,6 +484,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [copied, setCopied] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
+  const [copiedUsername, setCopiedUsername] = useState(false);
   const [showPasswordText, setShowPasswordText] = useState(false);
 
   // Form selections
@@ -454,40 +494,27 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState('');
 
-  const [form, setForm] = useState<AdminCreateUserRequest>({
+  const [form, setForm] = useState<AdminCreateUserRequest>(() => ({
     email: '',
-    password: '',
+    password: generateRandomPassword(),
     fullName: '',
-    workspaceName: '',
+    workspaceName: 'Personal Workspace',
     workspaceType: 'Personal',
     currency: 'USD',
     isSuperAdmin: false,
+    initialWorkspaceRole: 'Owner',
     organizationId: null,
     branchId: null,
     organizationRole: null,
     department: '',
-  });
+  }));
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const generateRandomPassword = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    let generated = '';
-    for (let i = 0; i < 12; i++) {
-      generated += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return generated;
-  };
-
   const regeneratePassword = () => {
     setForm((f) => ({ ...f, password: generateRandomPassword() }));
   };
-
-  // Auto generate password
-  useEffect(() => {
-    setForm((f) => ({ ...f, password: generateRandomPassword() }));
-  }, []);
 
   // Fetch Orgs & Branches
   useEffect(() => {
@@ -515,22 +542,29 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setSelectedBranchId('');
     setForm((f) => ({
       ...f,
-      workspaceName: mode === 'Individual' ? 'My Ledger' : mode === 'Organization' ? 'HQ Workspace' : 'Branch Ledger',
+      workspaceName: mode === 'Individual' ? 'Personal Workspace' : mode === 'Organization' ? 'HQ Workspace' : 'Branch Workspace',
       workspaceType: mode === 'Individual' ? 'Personal' : 'Business',
       organizationRole: mode === 'Organization' ? 'Owner' : mode === 'BranchManager' ? 'Staff' : null,
     }));
   };
 
+  const handleCopyUsername = () => {
+    if (!createdCredentials) return;
+    copyToClipboard(createdCredentials.email);
+    setCopiedUsername(true);
+    setTimeout(() => setCopiedUsername(false), 2000);
+  };
+
   const handleCopyEmail = () => {
     if (!createdCredentials) return;
-    navigator.clipboard.writeText(createdCredentials.email);
+    copyToClipboard(createdCredentials.email);
     setCopiedEmail(true);
     setTimeout(() => setCopiedEmail(false), 2000);
   };
 
   const handleCopyPassword = () => {
     if (!createdCredentials) return;
-    navigator.clipboard.writeText(createdCredentials.pass);
+    copyToClipboard(createdCredentials.pass);
     setCopiedPassword(true);
     setTimeout(() => setCopiedPassword(false), 2000);
   };
@@ -538,7 +572,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const handleCopyAll = () => {
     if (!createdCredentials) return;
     const txt = `HexaTrack Account Details\n-------------------------\nDisplay Name: ${createdCredentials.name}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.pass}`;
-    navigator.clipboard.writeText(txt);
+    copyToClipboard(txt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -561,7 +595,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
       setCreatedCredentials({
         name: result.displayName,
         email: result.email,
-        pass: result.plaintextPassword || form.password,
+        pass: result.plaintextPassword || result.temporaryPassword || form.password,
       });
       setStep('success');
     } catch (e: any) {
@@ -831,6 +865,14 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto pt-2">
               <button
                 type="button"
+                onClick={handleCopyUsername}
+                className="py-2.5 px-3 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+              >
+                {copiedUsername ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                {copiedUsername ? 'Username Copied' : 'Copy Username'}
+              </button>
+              <button
+                type="button"
                 onClick={handleCopyEmail}
                 className="py-2.5 px-3 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
               >
@@ -843,15 +885,15 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 className="py-2.5 px-3 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
               >
                 {copiedPassword ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                {copiedPassword ? 'Pass Copied' : 'Copy Password'}
+                {copiedPassword ? 'Password Copied' : 'Copy Password'}
               </button>
               <button
                 type="button"
                 onClick={handleCopyAll}
-                className="col-span-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-600/10"
+                className="py-2.5 px-3 rounded-xl border border-white/10 hover:bg-white/[0.02] text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
               >
-                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                {copied ? 'All Credentials Copied!' : 'Copy All Details'}
+                {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                {copied ? 'All Copied' : 'Copy All Credentials'}
               </button>
               <button
                 type="button"
@@ -877,25 +919,12 @@ function ResetPasswordModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(() => generateRandomPassword());
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const generateRandomPassword = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    let generated = '';
-    for (let i = 0; i < 12; i++) {
-      generated += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return generated;
-  };
-
-  useEffect(() => {
-    setPassword(generateRandomPassword());
-  }, []);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -916,7 +945,7 @@ function ResetPasswordModal({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(password);
+    copyToClipboard(password);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -1659,6 +1688,457 @@ function BranchReassignModal({
             </button>
           </div>
         </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function EditUserModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [fullName, setFullName] = useState(user.displayName || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [department, setDepartment] = useState(user.department || '');
+  const [organizationRole, setOrganizationRole] = useState(user.organizationRole || 'Staff');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      await hexaTrackApi.admin.updateUser(user.id, {
+        fullName,
+        email,
+        department: department || null,
+        organizationRole: user.organizationId ? organizationRole : null,
+      });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to update user details.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Edit User Profile</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Modify tenant identity and organizational scope details.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="px-6 py-5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Full Name</label>
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="w-full h-10 px-3.5 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full h-10 px-3.5 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+              />
+            </div>
+            {user.organizationId && (
+              <>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Organization Role</label>
+                  <select
+                    value={organizationRole}
+                    onChange={(e) => setOrganizationRole(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+                  >
+                    <option value="Owner">Owner (Primary)</option>
+                    <option value="Staff">Staff (Operations)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Department (Optional)</label>
+                  <input
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full h-10 px-3.5 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+                    placeholder="e.g. Accounts, Operations"
+                  />
+                </div>
+              </>
+            )}
+
+            {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+          </div>
+
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all disabled:opacity-60 flex items-center gap-2"
+            >
+              {submitting && <RefreshCw size={12} className="animate-spin" />}
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function UnifiedFeatureFlagsModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'platform' | 'org' | 'branch' | 'user'>('platform');
+  const [platformFlags, setPlatformFlags] = useState<FeatureFlagDto[]>([]);
+  const [orgFlags, setOrgFlags] = useState<OrganizationFeatureToggleDto[]>([]);
+  const [branchFlags, setBranchFlags] = useState<BranchFeatureToggleDto[]>([]);
+  const [userFlags, setUserFlags] = useState<UserFeatureToggleDto[]>([]);
+  
+  const [loading, setLoading] = useState(true);
+  const [togglingKey, setTogglingKey] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const fetchAllFlags = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const pFlags = await hexaTrackApi.admin.featureFlags();
+      setPlatformFlags(pFlags);
+
+      if (user.organizationId) {
+        const oFlags = await hexaTrackApi.admin.orgFeatureFlags(user.organizationId);
+        setOrgFlags(oFlags);
+      }
+
+      if (user.branchId) {
+        const bFlags = await hexaTrackApi.admin.branchFeatureFlags(user.branchId);
+        setBranchFlags(bFlags);
+      }
+
+      const uFlags = await hexaTrackApi.admin.userFeatureFlags(user.id);
+      setUserFlags(uFlags);
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load feature flags overrides.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchAllFlags();
+  }, [fetchAllFlags]);
+
+  const handleTogglePlatform = async (key: string, currentValue: string) => {
+    setTogglingKey(key);
+    setError('');
+    try {
+      const newValue = currentValue === 'true' ? 'false' : 'true';
+      await hexaTrackApi.admin.setFeatureFlag(key, newValue);
+      setPlatformFlags(f => f.map(fl => fl.key === key ? { ...fl, value: newValue } : fl));
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle platform feature flag.');
+    } finally {
+      setTogglingKey(null);
+    }
+  };
+
+  const handleToggleOrg = async (key: string, currentValue: boolean) => {
+    if (!user.organizationId) return;
+    setTogglingKey(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setOrgFeatureFlag(user.organizationId, key, !currentValue);
+      setOrgFlags(f => f.map(fl => fl.featureKey === key ? { ...fl, isEnabled: !currentValue } : fl));
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle organization feature override.');
+    } finally {
+      setTogglingKey(null);
+    }
+  };
+
+  const handleToggleBranch = async (key: string, currentValue: boolean) => {
+    if (!user.branchId) return;
+    setTogglingKey(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setBranchFeatureFlag(user.branchId, key, !currentValue);
+      setBranchFlags(f => f.map(fl => fl.featureKey === key ? { ...fl, isEnabled: !currentValue } : fl));
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle branch feature override.');
+    } finally {
+      setTogglingKey(null);
+    }
+  };
+
+  const handleToggleUser = async (key: string, currentValue: boolean) => {
+    setTogglingKey(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setUserFeatureFlag(user.id, key, !currentValue);
+      setUserFlags(f => f.map(fl => fl.featureKey === key ? { ...fl, isEnabled: !currentValue } : fl));
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle user feature override.');
+    } finally {
+      setTogglingKey(null);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+          <div>
+            <h2 className="text-base font-bold text-white">Manage Feature Flags</h2>
+            <p className="text-[10px] text-gray-500 mt-0.5">Toggle overrides for platform, organization, branch, and user scopes.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Tab Headers */}
+        <div className="flex border-b border-white/[0.06] p-1 gap-1 bg-[#101524]/60 backdrop-blur-md">
+          <button
+            onClick={() => setActiveTab('platform')}
+            className={`flex-1 py-2 text-center text-[10px] font-bold uppercase rounded-lg transition-all ${
+              activeTab === 'platform' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Platform Flags
+          </button>
+          {user.organizationId && (
+            <button
+              onClick={() => setActiveTab('org')}
+              className={`flex-1 py-2 text-center text-[10px] font-bold uppercase rounded-lg transition-all ${
+                activeTab === 'org' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Organization Flags
+            </button>
+          )}
+          {user.branchId && (
+            <button
+              onClick={() => setActiveTab('branch')}
+              className={`flex-1 py-2 text-center text-[10px] font-bold uppercase rounded-lg transition-all ${
+                activeTab === 'branch' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Branch Flags
+            </button>
+          )}
+          <button
+            onClick={() => setActiveTab('user')}
+            className={`flex-1 py-2 text-center text-[10px] font-bold uppercase rounded-lg transition-all ${
+              activeTab === 'user' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Individual User Flags
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 max-h-[400px] overflow-y-auto">
+          {loading ? (
+            <div className="py-12 text-center">
+              <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-[10px] text-gray-500 mt-2">Loading feature toggles overrides...</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeTab === 'platform' && (
+                platformFlags.length === 0 ? (
+                  <p className="text-center text-xs text-gray-500 py-4">No global platform flags found.</p>
+                ) : (
+                  platformFlags.map((f) => {
+                    const isEnabled = f.value === 'true';
+                    return (
+                      <div key={f.key} className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]">
+                        <div>
+                          <p className="text-xs font-bold text-white">{f.key}</p>
+                          <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                        </div>
+                        <button
+                          disabled={togglingKey === f.key}
+                          onClick={() => handleTogglePlatform(f.key, f.value)}
+                          className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                            isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                          } ${togglingKey === f.key ? 'opacity-50' : ''}`}
+                        >
+                          <motion.div
+                            layout
+                            className="w-4 h-4 rounded-full bg-white shadow-md"
+                            animate={{ x: isEnabled ? 16 : 0 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })
+                )
+              )}
+
+              {activeTab === 'org' && (
+                orgFlags.length === 0 ? (
+                  <p className="text-center text-xs text-gray-500 py-4">No organization feature overrides configured.</p>
+                ) : (
+                  orgFlags.map((f) => (
+                    <div key={f.featureKey} className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]">
+                      <div>
+                        <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                        <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                      </div>
+                      <button
+                        disabled={togglingKey === f.featureKey}
+                        onClick={() => handleToggleOrg(f.featureKey, f.isEnabled)}
+                        className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                          f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                        } ${togglingKey === f.featureKey ? 'opacity-50' : ''}`}
+                      >
+                        <motion.div
+                          layout
+                          className="w-4 h-4 rounded-full bg-white shadow-md"
+                          animate={{ x: f.isEnabled ? 16 : 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    </div>
+                  ))
+                )
+              )}
+
+              {activeTab === 'branch' && (
+                branchFlags.length === 0 ? (
+                  <p className="text-center text-xs text-gray-500 py-4">No branch feature overrides configured.</p>
+                ) : (
+                  branchFlags.map((f) => (
+                    <div key={f.featureKey} className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]">
+                      <div>
+                        <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                        <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                      </div>
+                      <button
+                        disabled={togglingKey === f.featureKey}
+                        onClick={() => handleToggleBranch(f.featureKey, f.isEnabled)}
+                        className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                          f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                        } ${togglingKey === f.featureKey ? 'opacity-50' : ''}`}
+                      >
+                        <motion.div
+                          layout
+                          className="w-4 h-4 rounded-full bg-white shadow-md"
+                          animate={{ x: f.isEnabled ? 16 : 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    </div>
+                  ))
+                )
+              )}
+
+              {activeTab === 'user' && (
+                userFlags.length === 0 ? (
+                  <p className="text-center text-xs text-gray-500 py-4">No individual user feature overrides configured.</p>
+                ) : (
+                  userFlags.map((f) => (
+                    <div key={f.featureKey} className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]">
+                      <div>
+                        <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                        <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                      </div>
+                      <button
+                        disabled={togglingKey === f.featureKey}
+                        onClick={() => handleToggleUser(f.featureKey, f.isEnabled)}
+                        className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                          f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                        } ${togglingKey === f.featureKey ? 'opacity-50' : ''}`}
+                      >
+                        <motion.div
+                          layout
+                          className="w-4 h-4 rounded-full bg-white shadow-md"
+                          animate={{ x: f.isEnabled ? 16 : 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    </div>
+                  ))
+                )
+              )}
+            </div>
+          )}
+
+          {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+        </div>
+
+        <div className="flex justify-end px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+          <button
+            type="button"
+            onClick={onSuccess}
+            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all"
+          >
+            Close & Save
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );

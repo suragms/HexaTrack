@@ -38,6 +38,10 @@ public sealed class AdminUsersController(ICurrentUser currentUser, IAdminUsersSe
     public Task<AdminCreateUserResponse> Create([FromBody] AdminCreateUserRequest body, CancellationToken cancellationToken)
         => users.CreateAsync(body, currentUser.UserId, cancellationToken);
 
+    [HttpPut("{id:guid}")]
+    public Task Update(Guid id, [FromBody] AdminUpdateUserRequest body, CancellationToken cancellationToken)
+        => users.UpdateAsync(id, body, currentUser.UserId, cancellationToken);
+
     [HttpPut("{id:guid}/superadmin")]
     public Task SetSuperAdmin(Guid id, [FromBody] SetSuperAdminRequest body, CancellationToken cancellationToken)
         => users.SetSuperAdminAsync(id, body.IsSuperAdmin, currentUser.UserId, cancellationToken);

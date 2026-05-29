@@ -11,7 +11,7 @@ type WorkspaceState = {
   hydrate: () => void;
   clear: () => void;
   ensureActiveWorkspace: () => Promise<void>;
-  refreshWorkspaces: () => Promise<void>;
+  refreshWorkspaces: (newWorkspace?: Workspace) => Promise<void>;
   setActiveWorkspaceId: (id: string) => void;
 };
 
@@ -34,8 +34,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({ activeWorkspaceId: null, workspaces: [] });
   },
   ensureActiveWorkspace: async () => {
+    const state = get();
+    // Short-circuit if we already have workspaces loaded and a valid active workspace selected
+    if (state.activeWorkspaceId && state.workspaces.length > 0 && state.workspaces.some((w) => w.id === state.activeWorkspaceId)) {
+      return;
+    }
+
     const list = await hexaTrackApi.workspaces.list();
-    const persisted = get().activeWorkspaceId;
+    const persisted = state.activeWorkspaceId;
     const match = persisted ? list.find((w) => w.id === persisted) : undefined;
     const picked = match ?? list.find((w) => w.isDefault) ?? list[0];
     if (!picked) {
@@ -47,18 +53,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
     set({ workspaces: list, activeWorkspaceId: picked.id });
   },
-  refreshWorkspaces: async () => {
-    const list = await hexaTrackApi.workspaces.list();
-    set((state) => {
-      let nextActive = state.activeWorkspaceId;
-      if (!nextActive || !list.some((w) => w.id === nextActive)) {
-        nextActive = list.find((w) => w.isDefault)?.id ?? list[0]?.id ?? null;
+  refreshWorkspaces: async (newWorkspace?: Workspace) => {
+    // Synchronously seed the new workspace into Zustand immediately to prevent race conditions during loadWorkspace()
+    if (newWorkspace) {
+      set((state) => {
+        const exists = state.workspaces.some((w) => w.id === newWorkspace.id);
+        const nextList = exists ? state.workspaces : [...state.workspaces, newWorkspace];
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(WORKSPACE_STORAGE_KEY, newWorkspace.id);
+        }
+        return { workspaces: nextList, activeWorkspaceId: newWorkspace.id };
+      });
+    }
+
+    try {
+      const list = await hexaTrackApi.workspaces.list();
+      if (newWorkspace && !list.some((w) => w.id === newWorkspace.id)) {
+        list.push(newWorkspace);
       }
-      if (nextActive && typeof window !== 'undefined') {
-        window.localStorage.setItem(WORKSPACE_STORAGE_KEY, nextActive);
-      }
-      return { workspaces: list, activeWorkspaceId: nextActive };
-    });
+      set((state) => {
+        let nextActive = newWorkspace?.id ?? state.activeWorkspaceId;
+        if (!nextActive || !list.some((w) => w.id === nextActive)) {
+          nextActive = list.find((w) => w.isDefault)?.id ?? list[0]?.id ?? null;
+        }
+        if (nextActive && typeof window !== 'undefined') {
+          window.localStorage.setItem(WORKSPACE_STORAGE_KEY, nextActive);
+        }
+        return { workspaces: list, activeWorkspaceId: nextActive };
+      });
+    } catch (err) {
+      console.error('Failed to refresh workspaces from server:', err);
+    }
   },
   setActiveWorkspaceId: (id: string) => {
     if (typeof window !== 'undefined') {
