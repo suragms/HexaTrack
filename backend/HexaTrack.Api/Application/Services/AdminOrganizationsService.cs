@@ -9,6 +9,7 @@ using HexaTrack.Api.Domain;
 using HexaTrack.Api.Domain.Entities;
 using HexaTrack.Api.Infrastructure;
 using HexaTrack.Api.Infrastructure.Repositories;
+using HexaTrack.Api.Application.Security;
 
 namespace HexaTrack.Api.Application.Services;
 
@@ -35,7 +36,11 @@ public interface IAdminOrganizationsService
     Task<OrgFinancialSummaryDto?> GetOrgFinancialsAsync(Guid id, int days, CancellationToken ct = default);
 }
 
-public sealed class AdminOrganizationsService(HexaTrackDbContext db, IUnitOfWork unitOfWork) : IAdminOrganizationsService
+public sealed class AdminOrganizationsService(
+    HexaTrackDbContext db,
+    IUnitOfWork unitOfWork,
+    IAdminAuditService audit,
+    ICurrentUser currentUser) : IAdminOrganizationsService
 {
     public async Task<Organization> CreateOrganizationAsync(CreateOrganizationRequest request, CancellationToken ct = default)
         => await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
@@ -348,13 +353,16 @@ public sealed class AdminOrganizationsService(HexaTrackDbContext db, IUnitOfWork
         User user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId && u.OrganizationRole == "Staff", ct)
             ?? throw new KeyNotFoundException("Staff user not found.");
 
+        if (!user.OrganizationId.HasValue)
+        {
+            throw new InvalidOperationException("Staff user is not assigned to an organization.");
+        }
+
+        Organization organization = await db.Organizations.SingleOrDefaultAsync(o => o.Id == user.OrganizationId.Value, ct)
+            ?? throw new InvalidOperationException("Organization not found.");
+
         if (request.BranchId.HasValue)
         {
-            if (!user.OrganizationId.HasValue)
-            {
-                throw new InvalidOperationException("Staff user is not assigned to an organization.");
-            }
-
             bool branchBelongsToOrg = await db.Branches
                 .AnyAsync(b => b.Id == request.BranchId.Value && b.OrganizationId == user.OrganizationId.Value, ct);
             if (!branchBelongsToOrg)
@@ -368,14 +376,16 @@ public sealed class AdminOrganizationsService(HexaTrackDbContext db, IUnitOfWork
         // Perform reassignment
         user.BranchId = request.BranchId;
 
-        // Update user Mode based on new BranchId
+        // Update user Mode and PermissionOverrides based on new BranchId
         if (request.BranchId.HasValue)
         {
             user.Mode = UserMode.BranchManager;
+            user.PermissionOverrides = organization.OwnerPermissions;
         }
         else
         {
             user.Mode = UserMode.OrganizationStaff;
+            user.PermissionOverrides = organization.StaffPermissions;
         }
 
         user.UpdatedAt = DateTimeOffset.UtcNow;
@@ -418,8 +428,34 @@ public sealed class AdminOrganizationsService(HexaTrackDbContext db, IUnitOfWork
                 }
             }
         }
+        else
+        {
+            // Joining the HQ Workspace as WorkspaceRole.Member
+            var hqWorkspace = await db.Workspaces
+                .FirstOrDefaultAsync(w => w.OrganizationId == user.OrganizationId.Value && w.Mode == WorkspaceMode.Organization, ct);
+            if (hqWorkspace != null)
+            {
+                var existingMember = await db.WorkspaceMembers
+                    .FirstOrDefaultAsync(wm => wm.WorkspaceId == hqWorkspace.Id && wm.UserId == userId, ct);
+                if (existingMember == null)
+                {
+                    db.WorkspaceMembers.Add(new WorkspaceMember
+                    {
+                        WorkspaceId = hqWorkspace.Id,
+                        UserId = userId,
+                        Role = WorkspaceRole.Member
+                    });
+                }
+                else
+                {
+                    existingMember.Role = WorkspaceRole.Member;
+                }
+            }
+        }
 
         await db.SaveChangesAsync(ct);
+        await audit.LogAsync(currentUser.UserId, "staff.reassign_branch", "User", userId,
+            System.Text.Json.JsonSerializer.Serialize(new { email = user.Email, oldBranchId, newBranchId = request.BranchId }), ct);
     }
 
     public async Task<User> AddStaffAsync(AddStaffRequest request, CancellationToken ct = default)

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { hexaTrackApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
-import type { AdminUserListItem, AdminCreateUserRequest, WorkspaceType, LightOrganization, LightBranch, SubscriptionPlan, UserFeatureToggleDto, OrganizationFeatureToggleDto, BranchFeatureToggleDto, FeatureFlagDto } from '@/lib/types';
+import type { AdminUserListItem, AdminCreateUserRequest, WorkspaceType, LightOrganization, LightBranch, SubscriptionPlan, UserFeatureToggleDto, OrganizationFeatureToggleDto, WorkspaceFeatureToggleDto, BranchFeatureToggleDto, FeatureFlagDto } from '@/lib/types';
 import { Users, Plus, Search, Shield, Lock, Unlock, Trash2, X, ChevronLeft, ChevronRight, MoreVertical, Crown, Copy, Check, Sparkles, Building, Landmark, UserCheck, RefreshCw, Key, CreditCard, Flag, GitMerge, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -69,6 +69,7 @@ export default function UsersPage() {
   const [orgFlagsUser, setOrgFlagsUser] = useState<AdminUserListItem | null>(null);
   const [branchFlagsUser, setBranchFlagsUser] = useState<AdminUserListItem | null>(null);
   const [reassignBranchUser, setReassignBranchUser] = useState<AdminUserListItem | null>(null);
+  const [reassignWorkspaceUser, setReassignWorkspaceUser] = useState<AdminUserListItem | null>(null);
   const [editUserUser, setEditUserUser] = useState<AdminUserListItem | null>(null);
   const [featureFlagsUser, setFeatureFlagsUser] = useState<AdminUserListItem | null>(null);
 
@@ -330,6 +331,17 @@ export default function UsersPage() {
                                   <GitMerge size={12} className="text-violet-400" /> Reassign Branch
                                 </button>
                               )}
+                              {u.workspaceId && (
+                                <button
+                                  onClick={() => {
+                                    setReassignWorkspaceUser(u);
+                                    setActionUser(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
+                                >
+                                  <GitMerge size={12} className="text-violet-400" /> Reassign Workspace
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleToggleLock(u)}
                                 className="w-full flex items-center gap-2 px-3.5 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04]"
@@ -469,6 +481,16 @@ export default function UsersPage() {
             onClose={() => setFeatureFlagsUser(null)}
             onSuccess={() => {
               setFeatureFlagsUser(null);
+              fetchUsers();
+            }}
+          />
+        )}
+        {reassignWorkspaceUser && (
+          <WorkspaceReassignModal
+            user={reassignWorkspaceUser}
+            onClose={() => setReassignWorkspaceUser(null)}
+            onSuccess={() => {
+              setReassignWorkspaceUser(null);
               fetchUsers();
             }}
           />
@@ -1693,6 +1715,169 @@ function BranchReassignModal({
   );
 }
 
+function WorkspaceReassignModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: AdminUserListItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [workspaces, setWorkspaces] = useState<AdminWorkspaceListItem[]>([]);
+  const [sourceWorkspaceId, setSourceWorkspaceId] = useState<string>(user.workspaceId ?? '');
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchWorkspaces = useCallback(async (q = '') => {
+    try {
+      const res = await hexaTrackApi.admin.workspaces(q || undefined, 1, 100);
+      setWorkspaces(res.items);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? 'Failed to load workspaces.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    fetchWorkspaces(val);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sourceWorkspaceId || !targetWorkspaceId) {
+      setError('Please select both source and target workspaces.');
+      return;
+    }
+    if (sourceWorkspaceId === targetWorkspaceId) {
+      setError('Source and target workspaces must be different.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await hexaTrackApi.admin.reassignUserWorkspace({
+        userId: user.id,
+        sourceWorkspaceId,
+        targetWorkspaceId,
+      });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to reassign user workspace.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0E1425] shadow-2xl overflow-hidden"
+      >
+        <form onSubmit={handleSubmit}>
+          <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/[0.06]">
+            <div>
+              <h2 className="text-base font-bold text-white">Reassign User Workspace</h2>
+              <p className="text-[10px] text-gray-500 mt-0.5">Move user {user.displayName} and their transactions between workspaces.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-gray-500"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Source Workspace</label>
+              <select
+                value={sourceWorkspaceId}
+                onChange={(e) => setSourceWorkspaceId(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+                required
+              >
+                <option value="">-- Select Source Workspace --</option>
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.ownerEmail})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Search Target Workspace</label>
+              <div className="relative mb-2">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Type to filter workspaces..."
+                  className="w-full h-9 pl-9 pr-3 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white placeholder:text-gray-600 outline-none focus:border-violet-500/30 transition-colors"
+                />
+              </div>
+              <select
+                value={targetWorkspaceId}
+                onChange={(e) => setTargetWorkspaceId(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-white/[0.06] bg-[#141828] text-xs text-white outline-none focus:border-violet-500/30"
+                required
+              >
+                <option value="">-- Select Target Workspace --</option>
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.ownerEmail})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {error && <p className="text-[11px] text-red-400 bg-red-500/10 px-3.5 py-2 rounded-xl border border-red-500/10">{error}</p>}
+          </div>
+
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.005]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || loading}
+              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white transition-all disabled:opacity-60 flex items-center gap-2"
+            >
+              {submitting && <RefreshCw size={12} className="animate-spin" />}
+              Reassign Workspace
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function EditUserModal({
   user,
   onClose,
@@ -1836,9 +2021,10 @@ function UnifiedFeatureFlagsModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'platform' | 'org' | 'branch' | 'user'>('platform');
+  const [activeTab, setActiveTab] = useState<'platform' | 'org' | 'workspace' | 'branch' | 'user'>('platform');
   const [platformFlags, setPlatformFlags] = useState<FeatureFlagDto[]>([]);
   const [orgFlags, setOrgFlags] = useState<OrganizationFeatureToggleDto[]>([]);
+  const [workspaceFlags, setWorkspaceFlags] = useState<WorkspaceFeatureToggleDto[]>([]);
   const [branchFlags, setBranchFlags] = useState<BranchFeatureToggleDto[]>([]);
   const [userFlags, setUserFlags] = useState<UserFeatureToggleDto[]>([]);
   
@@ -1856,6 +2042,11 @@ function UnifiedFeatureFlagsModal({
       if (user.organizationId) {
         const oFlags = await hexaTrackApi.admin.orgFeatureFlags(user.organizationId);
         setOrgFlags(oFlags);
+      }
+
+      if (user.workspaceId) {
+        const wFlags = await hexaTrackApi.admin.workspaceFeatureFlags(user.workspaceId);
+        setWorkspaceFlags(wFlags);
       }
 
       if (user.branchId) {
@@ -1899,6 +2090,20 @@ function UnifiedFeatureFlagsModal({
       setOrgFlags(f => f.map(fl => fl.featureKey === key ? { ...fl, isEnabled: !currentValue } : fl));
     } catch (err: any) {
       setError(err.message ?? 'Failed to toggle organization feature override.');
+    } finally {
+      setTogglingKey(null);
+    }
+  };
+
+  const handleToggleWorkspace = async (key: string, currentValue: boolean) => {
+    if (!user.workspaceId) return;
+    setTogglingKey(key);
+    setError('');
+    try {
+      await hexaTrackApi.admin.setWorkspaceFeatureFlag(user.workspaceId, key, !currentValue);
+      setWorkspaceFlags(f => f.map(fl => fl.featureKey === key ? { ...fl, isEnabled: !currentValue } : fl));
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to toggle workspace feature override.');
     } finally {
       setTogglingKey(null);
     }
@@ -1966,7 +2171,7 @@ function UnifiedFeatureFlagsModal({
               activeTab === 'platform' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
             }`}
           >
-            Platform Flags
+            Platform
           </button>
           {user.organizationId && (
             <button
@@ -1975,7 +2180,17 @@ function UnifiedFeatureFlagsModal({
                 activeTab === 'org' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Organization Flags
+              Org
+            </button>
+          )}
+          {user.workspaceId && (
+            <button
+              onClick={() => setActiveTab('workspace')}
+              className={`flex-1 py-2 text-center text-[10px] font-bold uppercase rounded-lg transition-all ${
+                activeTab === 'workspace' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Workspace
             </button>
           )}
           {user.branchId && (
@@ -1985,7 +2200,7 @@ function UnifiedFeatureFlagsModal({
                 activeTab === 'branch' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Branch Flags
+              Branch
             </button>
           )}
           <button
@@ -1994,7 +2209,7 @@ function UnifiedFeatureFlagsModal({
               activeTab === 'user' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
             }`}
           >
-            Individual User Flags
+            User
           </button>
         </div>
 
@@ -2035,6 +2250,35 @@ function UnifiedFeatureFlagsModal({
                       </div>
                     );
                   })
+                )
+              )}
+
+              {activeTab === 'workspace' && (
+                workspaceFlags.length === 0 ? (
+                  <p className="text-center text-xs text-gray-500 py-4">No workspace feature overrides configured.</p>
+                ) : (
+                  workspaceFlags.map((f) => (
+                    <div key={f.featureKey} className="flex items-center justify-between p-3.5 rounded-xl border border-white/[0.04] bg-white/[0.01]">
+                      <div>
+                        <p className="text-xs font-bold text-white">{f.featureKey}</p>
+                        <p className="text-[9px] text-gray-500 mt-0.5">Last updated: {new Date(f.updatedAt).toLocaleDateString()}</p>
+                      </div>
+                      <button
+                        disabled={togglingKey === f.featureKey}
+                        onClick={() => handleToggleWorkspace(f.featureKey, f.isEnabled)}
+                        className={`relative w-9 h-5 rounded-full transition-colors flex items-center p-0.5 ${
+                          f.isEnabled ? 'bg-violet-600' : 'bg-gray-800'
+                        } ${togglingKey === f.featureKey ? 'opacity-50' : ''}`}
+                      >
+                        <motion.div
+                          layout
+                          className="w-4 h-4 rounded-full bg-white shadow-md"
+                          animate={{ x: f.isEnabled ? 16 : 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    </div>
+                  ))
                 )
               )}
 

@@ -148,6 +148,28 @@ public sealed class TransactionService(
                 throw new InvalidOperationException("Amount must be greater than zero.");
             }
 
+            // Resolve OrganizationId and BranchId dynamically based on the current workspace
+            var workspaceInfo = await db.Workspaces
+                .Where(w => w.Id == currentWorkspace.WorkspaceId)
+                .Select(w => new { w.OrganizationId, w.Mode })
+                .SingleOrDefaultAsync(ct);
+
+            Guid? orgId = workspaceInfo?.OrganizationId;
+            Guid? branchId = null;
+
+            if (workspaceInfo != null && workspaceInfo.Mode == WorkspaceMode.Branch)
+            {
+                var branchInfo = await db.Branches
+                    .Where(b => b.WorkspaceId == currentWorkspace.WorkspaceId)
+                    .Select(b => new { b.Id, b.OrganizationId })
+                    .FirstOrDefaultAsync(ct);
+                if (branchInfo != null)
+                {
+                    orgId = branchInfo.OrganizationId;
+                    branchId = branchInfo.Id;
+                }
+            }
+
             // Use repository so multi-tenant scoping and access rules are strictly applied
             Account? account = null;
             if (request.AccountId != Guid.Empty)
@@ -169,8 +191,8 @@ public sealed class TransactionService(
                     {
                         Id = Guid.NewGuid(),
                         WorkspaceId = currentWorkspace.WorkspaceId,
-                        OrganizationId = currentUser.OrganizationId,
-                        BranchId = currentUser.BranchId,
+                        OrganizationId = orgId,
+                        BranchId = branchId,
                         UserId = currentUser.UserId,
                         Name = "System Vault",
                         Type = AccountType.Cash,
@@ -206,12 +228,15 @@ public sealed class TransactionService(
                 throw new InvalidOperationException("Category is invalid for this transaction type.");
             }
 
-            bool categoryHasSubcategories = await db.Categories
-                .InWorkspace(currentWorkspace.WorkspaceId)
-                .AnyAsync(x => x.ParentCategoryId == request.CategoryId && !x.IsArchived, ct);
-            if (categoryHasSubcategories)
+            if (request.Type != TransactionType.Income)
             {
-                throw new InvalidOperationException("Choose a subcategory for this category.");
+                bool categoryHasSubcategories = await db.Categories
+                    .InWorkspace(currentWorkspace.WorkspaceId)
+                    .AnyAsync(x => x.ParentCategoryId == request.CategoryId && !x.IsArchived, ct);
+                if (categoryHasSubcategories)
+                {
+                    throw new InvalidOperationException("Choose a subcategory for this category.");
+                }
             }
 
             account.Balance += request.Type == TransactionType.Income ? request.Amount : -request.Amount;
@@ -219,8 +244,8 @@ public sealed class TransactionService(
             var transaction = new DomainTransaction
             {
                 WorkspaceId = currentWorkspace.WorkspaceId,
-                OrganizationId = currentUser.OrganizationId,
-                BranchId = currentUser.BranchId,
+                OrganizationId = orgId,
+                BranchId = branchId,
                 UserId = currentUser.UserId,
                 AccountId = account.Id,
                 CategoryId = request.CategoryId,
@@ -275,11 +300,14 @@ public sealed class TransactionService(
                     throw new InvalidOperationException("Category is invalid for this transaction type.");
                 }
 
-                bool categoryHasSubcategories = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
-                    .AnyAsync(x => x.ParentCategoryId == newCategoryId && !x.IsArchived, ct);
-                if (categoryHasSubcategories)
+                if (transaction.Type != TransactionType.Income)
                 {
-                    throw new InvalidOperationException("Choose a subcategory for this category.");
+                    bool categoryHasSubcategories = await db.Categories.InWorkspace(currentWorkspace.WorkspaceId)
+                        .AnyAsync(x => x.ParentCategoryId == newCategoryId && !x.IsArchived, ct);
+                    if (categoryHasSubcategories)
+                    {
+                        throw new InvalidOperationException("Choose a subcategory for this category.");
+                    }
                 }
             }
 

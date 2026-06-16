@@ -47,4 +47,11 @@ public sealed class AdminWorkspacesController(IAdminWorkspacesService workspaces
         await workspaces.DeleteWorkspaceAsync(id, currentUser.UserId, cancellationToken);
         return NoContent();
     }
+
+    [HttpPost("reassign-user")]
+    public async Task<IActionResult> ReassignUser([FromBody] AdminWorkspaceUserReassignRequest request, CancellationToken cancellationToken)
+    {
+        await workspaces.ReassignUserWorkspaceAsync(request.UserId, request.SourceWorkspaceId, request.TargetWorkspaceId, currentUser.UserId, cancellationToken);
+        return NoContent();
+    }
 }

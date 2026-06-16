@@ -16,6 +16,7 @@ public interface IAdminWorkspacesService
     Task ChangeRoleAsync(Guid workspaceId, Guid userId, WorkspaceRole role, Guid actorUserId, CancellationToken cancellationToken);
     Task RemoveUserAsync(Guid workspaceId, Guid userId, Guid actorUserId, CancellationToken cancellationToken);
     Task DeleteWorkspaceAsync(Guid workspaceId, Guid actorUserId, CancellationToken cancellationToken);
+    Task ReassignUserWorkspaceAsync(Guid userId, Guid sourceWorkspaceId, Guid targetWorkspaceId, Guid actorUserId, CancellationToken ct);
 }
 
 public sealed class AdminWorkspacesService(HexaTrackDbContext db, IAdminAuditService audit) : IAdminWorkspacesService
@@ -258,5 +259,258 @@ public sealed class AdminWorkspacesService(HexaTrackDbContext db, IAdminAuditSer
         // Log audit
         await audit.LogAsync(actorUserId, "workspace.delete", "Workspace", workspaceId,
             JsonSerializer.Serialize(new { workspace.Name, workspace.Type, workspace.OwnerUserId }), cancellationToken);
+    }
+
+    public async Task ReassignUserWorkspaceAsync(Guid userId, Guid sourceWorkspaceId, Guid targetWorkspaceId, Guid actorUserId, CancellationToken ct)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        var sourceWorkspace = await db.Workspaces.SingleOrDefaultAsync(w => w.Id == sourceWorkspaceId, ct)
+            ?? throw new KeyNotFoundException("Source workspace not found.");
+
+        var targetWorkspace = await db.Workspaces.SingleOrDefaultAsync(w => w.Id == targetWorkspaceId, ct)
+            ?? throw new KeyNotFoundException("Target workspace not found.");
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+        // 1. Update workspace membership role mappings.
+        var sourceMembership = await db.WorkspaceMembers
+            .SingleOrDefaultAsync(m => m.WorkspaceId == sourceWorkspaceId && m.UserId == userId, ct);
+
+        WorkspaceRole resolvedRole = WorkspaceRole.Member;
+        if (sourceMembership != null)
+        {
+            resolvedRole = sourceMembership.Role;
+            db.WorkspaceMembers.Remove(sourceMembership);
+        }
+
+        var targetMembership = await db.WorkspaceMembers
+            .SingleOrDefaultAsync(m => m.WorkspaceId == targetWorkspaceId && m.UserId == userId, ct);
+
+        if (targetMembership == null)
+        {
+            db.WorkspaceMembers.Add(new WorkspaceMember
+            {
+                WorkspaceId = targetWorkspaceId,
+                UserId = userId,
+                Role = resolvedRole
+            });
+        }
+
+        // 2. Load all user transactions in sourceWorkspaceId.
+        var userTransactions = await db.Transactions
+            .Where(t => t.WorkspaceId == sourceWorkspaceId && t.UserId == userId)
+            .ToListAsync(ct);
+
+        // 3. Remap accounts.
+        var sourceAccountIds = userTransactions.Select(t => t.AccountId).Distinct().ToList();
+        var sourceAccounts = await db.Accounts
+            .Where(a => sourceAccountIds.Contains(a.Id) && a.WorkspaceId == sourceWorkspaceId)
+            .ToListAsync(ct);
+
+        var targetAccounts = await db.Accounts
+            .Where(a => a.WorkspaceId == targetWorkspaceId)
+            .ToListAsync(ct);
+
+        var accountMapping = new Dictionary<Guid, Guid>();
+
+        Guid? targetOrgId = targetWorkspace.OrganizationId;
+        Guid? targetBranchId = null;
+        if (targetWorkspace.Mode == WorkspaceMode.Branch)
+        {
+            var branchInfo = await db.Branches
+                .Where(b => b.WorkspaceId == targetWorkspaceId)
+                .Select(b => new { b.Id, b.OrganizationId })
+                .FirstOrDefaultAsync(ct);
+            if (branchInfo != null)
+            {
+                targetOrgId = branchInfo.OrganizationId;
+                targetBranchId = branchInfo.Id;
+            }
+        }
+
+        foreach (var srcAcc in sourceAccounts)
+        {
+            var match = targetAccounts.FirstOrDefault(tAcc =>
+                string.Equals(tAcc.Name, srcAcc.Name, StringComparison.OrdinalIgnoreCase) &&
+                tAcc.Type == srcAcc.Type &&
+                string.Equals(tAcc.Currency, srcAcc.Currency, StringComparison.OrdinalIgnoreCase));
+
+            if (match != null)
+            {
+                accountMapping[srcAcc.Id] = match.Id;
+            }
+            else
+            {
+                var newAcc = new Account
+                {
+                    Id = Guid.NewGuid(),
+                    WorkspaceId = targetWorkspaceId,
+                    OrganizationId = targetOrgId,
+                    BranchId = targetBranchId,
+                    UserId = userId,
+                    Name = srcAcc.Name,
+                    Type = srcAcc.Type,
+                    Currency = srcAcc.Currency,
+                    Balance = 0,
+                    IsArchived = srcAcc.IsArchived,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Accounts.Add(newAcc);
+                targetAccounts.Add(newAcc);
+                accountMapping[srcAcc.Id] = newAcc.Id;
+            }
+        }
+
+        // 4. Remap categories recursively.
+        var sourceCategories = await db.Categories
+            .Where(c => c.WorkspaceId == sourceWorkspaceId)
+            .ToListAsync(ct);
+
+        var targetCategories = await db.Categories
+            .Where(c => c.WorkspaceId == targetWorkspaceId)
+            .ToListAsync(ct);
+
+        var categoryMapping = new Dictionary<Guid, Guid>();
+
+        Guid GetOrMapCategory(Guid srcCatId)
+        {
+            if (categoryMapping.TryGetValue(srcCatId, out Guid targetId))
+            {
+                return targetId;
+            }
+
+            var srcCat = sourceCategories.FirstOrDefault(c => c.Id == srcCatId);
+            if (srcCat == null)
+            {
+                return srcCatId;
+            }
+
+            Guid? targetParentId = null;
+            if (srcCat.ParentCategoryId.HasValue)
+            {
+                targetParentId = GetOrMapCategory(srcCat.ParentCategoryId.Value);
+            }
+
+            var match = targetCategories.FirstOrDefault(tCat =>
+                string.Equals(tCat.Name, srcCat.Name, StringComparison.OrdinalIgnoreCase) &&
+                tCat.Type == srcCat.Type &&
+                tCat.ParentCategoryId == targetParentId);
+
+            if (match != null)
+            {
+                categoryMapping[srcCatId] = match.Id;
+                return match.Id;
+            }
+            else
+            {
+                var newCat = new Category
+                {
+                    Id = Guid.NewGuid(),
+                    WorkspaceId = targetWorkspaceId,
+                    UserId = userId,
+                    OrganizationId = targetOrgId,
+                    BranchId = targetBranchId,
+                    Name = srcCat.Name,
+                    Type = srcCat.Type,
+                    Icon = srcCat.Icon,
+                    Color = srcCat.Color,
+                    ParentCategoryId = targetParentId,
+                    IsArchived = srcCat.IsArchived
+                };
+                db.Categories.Add(newCat);
+                targetCategories.Add(newCat);
+                categoryMapping[srcCatId] = newCat.Id;
+                return newCat.Id;
+            }
+        }
+
+        foreach (var t in userTransactions)
+        {
+            GetOrMapCategory(t.CategoryId);
+        }
+
+        // 5. Remap transaction tags.
+        var transactionIds = userTransactions.Select(t => t.Id).ToList();
+        var sourceTxTags = await db.TransactionTags
+            .Include(tt => tt.Tag)
+            .Where(tt => transactionIds.Contains(tt.TransactionId))
+            .ToListAsync(ct);
+
+        var targetTags = await db.Tags
+            .Where(t => t.WorkspaceId == targetWorkspaceId)
+            .ToListAsync(ct);
+
+        var tagMapping = new Dictionary<Guid, Guid>();
+
+        foreach (var srcTxTag in sourceTxTags)
+        {
+            var srcTag = srcTxTag.Tag;
+            if (srcTag == null) continue;
+
+            if (!tagMapping.ContainsKey(srcTag.Id))
+            {
+                var match = targetTags.FirstOrDefault(tTag =>
+                    string.Equals(tTag.Name, srcTag.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (match != null)
+                {
+                    tagMapping[srcTag.Id] = match.Id;
+                }
+                else
+                {
+                    var newTag = new Tag
+                    {
+                        Id = Guid.NewGuid(),
+                        WorkspaceId = targetWorkspaceId,
+                        UserId = userId,
+                        Name = srcTag.Name
+                    };
+                    db.Tags.Add(newTag);
+                    targetTags.Add(newTag);
+                    tagMapping[srcTag.Id] = newTag.Id;
+                }
+            }
+        }
+
+        foreach (var tt in sourceTxTags)
+        {
+            if (tagMapping.TryGetValue(tt.TagId, out Guid targetTagId))
+            {
+                tt.TagId = targetTagId;
+            }
+        }
+
+        // 6. Revert and apply balance effects.
+        foreach (var t in userTransactions)
+        {
+            decimal effect = t.Type == TransactionType.Income ? t.Amount : -t.Amount;
+
+            var srcAcc = sourceAccounts.FirstOrDefault(a => a.Id == t.AccountId);
+            if (srcAcc != null)
+            {
+                srcAcc.Balance -= effect;
+            }
+
+            var targetAccountId = accountMapping[t.AccountId];
+            var tgtAcc = targetAccounts.FirstOrDefault(a => a.Id == targetAccountId);
+            if (tgtAcc != null)
+            {
+                tgtAcc.Balance += effect;
+            }
+
+            t.WorkspaceId = targetWorkspaceId;
+            t.OrganizationId = targetOrgId;
+            t.BranchId = targetBranchId;
+            t.AccountId = targetAccountId;
+            t.CategoryId = categoryMapping[t.CategoryId];
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        await audit.LogAsync(actorUserId, "workspace.reassign_user", "User", userId,
+            JsonSerializer.Serialize(new { userId, sourceWorkspaceId, targetWorkspaceId, transactionCount = userTransactions.Count }), ct);
     }
 }

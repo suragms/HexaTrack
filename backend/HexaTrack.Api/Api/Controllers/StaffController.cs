@@ -171,6 +171,13 @@ public sealed class StaffController(ICurrentUser currentUser, IOwnerService owne
         StaffScope scope = await GetStaffScopeAsync(ct);
         if (request.Amount <= 0) throw new InvalidOperationException("Amount must be greater than zero.");
 
+        var branch = await db.Branches
+            .AsNoTracking()
+            .Where(b => b.Id == scope.BranchId)
+            .Select(b => new { b.OrganizationId })
+            .SingleOrDefaultAsync(ct);
+        Guid? orgId = branch?.OrganizationId;
+
         await using var dbTransaction = await db.Database.BeginTransactionAsync(ct);
         Account account = await db.Accounts
             .SingleOrDefaultAsync(item => item.Id == request.AccountId && item.WorkspaceId == scope.WorkspaceId && !item.IsArchived, ct)
@@ -196,6 +203,8 @@ public sealed class StaffController(ICurrentUser currentUser, IOwnerService owne
         var transaction = new Transaction
         {
             WorkspaceId = scope.WorkspaceId,
+            OrganizationId = orgId,
+            BranchId = scope.BranchId,
             UserId = currentUser.UserId,
             AccountId = account.Id,
             CategoryId = category.Id,

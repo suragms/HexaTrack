@@ -16,7 +16,8 @@ public sealed record AdminUserListItemDto(
     string? OrganizationName = null,
     Guid? BranchId = null,
     string? BranchName = null,
-    Guid? OrganizationId = null);
+    Guid? OrganizationId = null,
+    Guid? WorkspaceId = null);
 public sealed record AdminUserListResult(IReadOnlyCollection<AdminUserListItemDto> Items, int Page, int PageSize, int TotalCount);
 public sealed record AdminUserListFilter(
     string? Query,
@@ -93,6 +94,7 @@ public sealed record AdminWorkspaceListResult(IReadOnlyList<AdminWorkspaceListIt
 public sealed record AdminCreateWorkspaceRequest(Guid OwnerUserId, string Name, WorkspaceType Type, WorkspaceMode Mode, string Currency, Guid? OrganizationId);
 public sealed record AdminWorkspaceMemberRequest(Guid UserId, WorkspaceRole Role);
 public sealed record AdminWorkspaceRoleRequest(WorkspaceRole Role);
+public sealed record AdminWorkspaceUserReassignRequest(Guid UserId, Guid SourceWorkspaceId, Guid TargetWorkspaceId);
 
 public sealed record AdminAnalyticsOverviewDto(
     int TotalUsers,

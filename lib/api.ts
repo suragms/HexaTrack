@@ -11,6 +11,7 @@ import type {
   AdminWorkspaceListItem,
   AdminWorkspaceListResult,
   AdminExpenseCategoryAgg,
+  AdminWorkspaceUserReassignRequest,
   AiUsageSummaryResult,
   AuthMeResponse,
   AuthResponse,
@@ -457,6 +458,11 @@ export const hexaTrackApi = {
       apiRequest<void>(`/api/admin/workspaces/${workspaceId}/members/${userId}/role`, { method: 'PUT', body: { role } }),
     removeWorkspaceUser: (workspaceId: string, userId: string) =>
       apiRequest<void>(`/api/admin/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
+    reassignUserWorkspace: (payload: AdminWorkspaceUserReassignRequest) =>
+      apiRequest<void>('/api/admin/workspaces/reassign-user', {
+        method: 'POST',
+        body: payload,
+      }),
     featureFlags: () => apiRequest<FeatureFlagDto[]>('/api/admin/feature-flags'),
     setFeatureFlag: (key: string, value: string) =>
       apiRequest<void>(`/api/admin/feature-flags/${encodeURIComponent(key)}`, {

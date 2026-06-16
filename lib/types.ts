@@ -68,6 +68,13 @@ export type AdminUserListItem = {
   branchId?: string | null;
   branchName?: string | null;
   organizationId?: string | null;
+  workspaceId?: string | null;
+};
+
+export type AdminWorkspaceUserReassignRequest = {
+  userId: string;
+  sourceWorkspaceId: string;
+  targetWorkspaceId: string;
 };
 
 export type AdminUserListResult = {

@@ -99,7 +99,13 @@ public sealed class AdminUsersService(
                 org != null ? org.Name : null,
                 u.BranchId,
                 branch != null ? branch.Name : null,
-                u.OrganizationId))
+                u.OrganizationId,
+                u.BranchId != null
+                    ? db.Branches.Where(b => b.Id == u.BranchId).Select(b => b.WorkspaceId).FirstOrDefault()
+                    : (u.OrganizationId != null && u.OrganizationRole == "Owner"
+                        ? db.Workspaces.Where(w => w.OrganizationId == u.OrganizationId && w.Mode == WorkspaceMode.Organization).OrderByDescending(w => w.IsDefault).Select(w => (Guid?)w.Id).FirstOrDefault()
+                        : db.WorkspaceMembers.Where(m => m.UserId == u.Id).OrderByDescending(m => m.Workspace!.IsDefault).Select(m => (Guid?)m.WorkspaceId).FirstOrDefault()
+                          ?? db.Workspaces.Where(w => w.OwnerUserId == u.Id).OrderByDescending(w => w.IsDefault).Select(w => (Guid?)w.Id).FirstOrDefault())))
             .ToListAsync(cancellationToken);
         return new AdminUserListResult(items, page, pageSize, total);
     }

@@ -98,7 +98,8 @@ public sealed class OwnerService(HexaTrackDbContext db) : IOwnerService
                 u.Organization != null ? u.Organization.Name : null,
                 u.BranchId,
                 u.Branch != null ? u.Branch.Name : null,
-                u.OrganizationId))
+                u.OrganizationId,
+                null))
             .ToListAsync(ct);
     }
 

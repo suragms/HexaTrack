@@ -29,6 +29,11 @@ export default function Home() {
   const [screen, setScreen] = useState<ScreenKey>('dashboard');
   const [unauthView, setUnauthView] = useState<UnauthView>('marketing');
   const [mounted, setMounted] = useState(false);
+
+  // Quick-add transaction sheet state
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddType, setQuickAddType] = useState<TransactionType | undefined>(undefined);
+  const [quickAddInitialStep, setQuickAddInitialStep] = useState<'menu' | 'form' | undefined>(undefined);
   
   const hydrated = useAuthStore((state) => state.hydrated);
   const hydrate = useAuthStore((state) => state.hydrate);
@@ -48,6 +53,25 @@ export default function Home() {
     hydrate();
     hydrateWorkspace();
   }, [hydrate, hydrateWorkspace]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOpenQuickAdd = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.type) {
+        setQuickAddType(detail.type);
+        setQuickAddInitialStep('form');
+      } else if (detail?.menu) {
+        setQuickAddType(undefined);
+        setQuickAddInitialStep('menu');
+      }
+      setQuickAddOpen(true);
+    };
+    window.addEventListener('hexatrack:open-quick-add', handleOpenQuickAdd);
+    return () => {
+      window.removeEventListener('hexatrack:open-quick-add', handleOpenQuickAdd);
+    };
+  }, []);
 
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {
@@ -180,17 +204,25 @@ export default function Home() {
   }
 
   return (
-    <AppShell 
-      activeScreen={screen} 
-      onAddTransaction={() => {
-        window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }));
-      }} 
-      onNavigate={setScreen} 
-      transactionCount={transactions.length}
-    >
-      <StatusBanner error={error} loading={loading} onDismiss={clearError} />
-      <AnimatePresence animationKey={screen}>{content}</AnimatePresence>
-    </AppShell>
+    <>
+      <AppShell 
+        activeScreen={screen} 
+        onAddTransaction={() => {
+          window.dispatchEvent(new CustomEvent('hexatrack:open-quick-add', { detail: { menu: true } }));
+        }} 
+        onNavigate={setScreen} 
+        transactionCount={transactions.length}
+      >
+        <StatusBanner error={error} loading={loading} onDismiss={clearError} />
+        <AnimatePresence animationKey={screen}>{content}</AnimatePresence>
+      </AppShell>
+      <AddTransactionSheet 
+        open={quickAddOpen} 
+        onOpenChange={setQuickAddOpen} 
+        defaultType={quickAddType} 
+        initialStep={quickAddInitialStep} 
+      />
+    </>
   );
 }
 

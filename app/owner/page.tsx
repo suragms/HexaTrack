@@ -111,7 +111,7 @@ export default function OwnerDashboard() {
         case 'integrations': return <IntegrationsHub />;
         
         /* Shared Branch Contextual Finance Screens */
-        case 'finance-dashboard': return <DashboardScreen onAddTransaction={() => setTxType('Expense')} />;
+        case 'finance-dashboard': return <DashboardScreen onAddTransaction={(type) => setTxType(type || 'Expense')} />;
         case 'transactions': return <HistoryScreen />;
         case 'reports': return <ReportsScreen />;
         case 'recurring': return <RecurringScreen />;
